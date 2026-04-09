@@ -1,0 +1,1841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NovOS — Next Generation Operating System</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #07080f;
+    --surface: rgba(255,255,255,0.05);
+    --surface2: rgba(255,255,255,0.08);
+    --surface3: rgba(255,255,255,0.12);
+    --border: rgba(255,255,255,0.1);
+    --border2: rgba(255,255,255,0.2);
+    --text: #f0f0ff;
+    --text2: rgba(240,240,255,0.6);
+    --text3: rgba(240,240,255,0.35);
+    --accent: #6c8bff;
+    --accent2: #a78bfa;
+    --accent3: #34d399;
+    --red: #f87171;
+    --yellow: #fbbf24;
+    --pink: #f472b6;
+    --taskbar-h: 58px;
+    --radius: 16px;
+    --radius-sm: 10px;
+    --shadow: 0 24px 80px rgba(0,0,0,0.6), 0 4px 16px rgba(0,0,0,0.4);
+  }
+
+  html, body {
+    width: 100%; height: 100%; overflow: hidden;
+    background: var(--bg);
+    font-family: 'Instrument Sans', sans-serif;
+    color: var(--text);
+    user-select: none;
+  }
+
+  /* === WALLPAPER === */
+  #wallpaper {
+    position: fixed; inset: 0; z-index: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 20% 80%, rgba(108,139,255,0.18) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 50% at 80% 20%, rgba(167,139,250,0.15) 0%, transparent 55%),
+      radial-gradient(ellipse 50% 40% at 50% 50%, rgba(52,211,153,0.06) 0%, transparent 50%),
+      #07080f;
+  }
+  #wallpaper canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.35; }
+
+  /* === DESKTOP === */
+  #desktop {
+    position: fixed; inset: 0 0 var(--taskbar-h) 0; z-index: 1;
+    overflow: hidden;
+  }
+
+  /* === WINDOWS === */
+  .window {
+    position: absolute;
+    background: rgba(14,16,26,0.82);
+    backdrop-filter: blur(32px) saturate(1.4);
+    -webkit-backdrop-filter: blur(32px) saturate(1.4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    display: flex; flex-direction: column;
+    min-width: 320px; min-height: 200px;
+    transition: box-shadow 0.2s, transform 0.15s;
+    overflow: hidden;
+  }
+  .window.active { border-color: rgba(108,139,255,0.4); box-shadow: var(--shadow), 0 0 0 1px rgba(108,139,255,0.2); z-index: 100 !important; }
+  .window.minimized { transform: scale(0.6) translateY(100px); opacity: 0; pointer-events: none; transition: all 0.25s cubic-bezier(0.4,0,0.2,1); }
+  .window.maximized { top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important; border-radius: 0; }
+
+  .win-titlebar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 16px; cursor: grab;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .win-titlebar:active { cursor: grabbing; }
+  .win-controls { display: flex; gap: 7px; }
+  .win-btn {
+    width: 13px; height: 13px; border-radius: 50%; border: none; cursor: pointer;
+    transition: filter 0.15s, transform 0.1s;
+  }
+  .win-btn:hover { filter: brightness(1.3); transform: scale(1.15); }
+  .win-btn.close { background: #ff5f57; }
+  .win-btn.min { background: #febc2e; }
+  .win-btn.max { background: #28c840; }
+  .win-title { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 600; color: var(--text2); flex: 1; }
+  .win-icon { font-size: 16px; }
+
+  .win-body { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+
+  /* === TASKBAR === */
+  #taskbar {
+    position: fixed; bottom: 0; left: 0; right: 0; height: var(--taskbar-h); z-index: 200;
+    background: rgba(10,12,20,0.85);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+    border-top: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 20px; gap: 12px;
+  }
+  #taskbar-clock {
+    margin-left: auto;
+    font-family: 'DM Mono', monospace;
+    font-size: 14px; color: var(--text2);
+    text-align: right; line-height: 1.3;
+    cursor: pointer;
+  }
+  #taskbar-clock span { display: block; font-size: 11px; color: var(--text3); }
+
+  .dock-btn {
+    display: flex; align-items: center; justify-content: center; flex-direction: column;
+    gap: 4px; padding: 6px 12px;
+    border: none; background: var(--surface); border-radius: var(--radius-sm);
+    color: var(--text2); cursor: pointer; font-family: 'Instrument Sans', sans-serif;
+    font-size: 11px; font-weight: 500;
+    transition: all 0.2s; border: 1px solid transparent;
+    min-width: 52px;
+  }
+  .dock-btn .icon { font-size: 20px; }
+  .dock-btn:hover { background: var(--surface2); border-color: var(--border); color: var(--text); transform: translateY(-3px); }
+  .dock-btn.active { border-color: var(--accent); color: var(--accent); }
+
+  #start-btn {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none; border-radius: var(--radius-sm);
+    padding: 8px 16px; color: white; font-family: 'Syne', sans-serif;
+    font-size: 13px; font-weight: 700; cursor: pointer;
+    transition: all 0.2s; letter-spacing: 0.5px;
+    box-shadow: 0 4px 20px rgba(108,139,255,0.3);
+  }
+  #start-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(108,139,255,0.5); }
+
+  #taskbar-sep { width: 1px; height: 30px; background: var(--border); margin: 0 4px; }
+
+  /* === START MENU === */
+  #start-menu {
+    position: fixed; bottom: calc(var(--taskbar-h) + 12px); left: 20px;
+    width: 520px; max-height: 600px;
+    background: rgba(12,14,24,0.92);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+    border: 1px solid var(--border2);
+    border-radius: 20px;
+    box-shadow: var(--shadow);
+    z-index: 300; padding: 20px;
+    display: none; flex-direction: column; gap: 16px;
+    animation: slideUp 0.25s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  #start-menu.open { display: flex; }
+  @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+  .start-search {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 16px; color: var(--text);
+    font-family: 'Instrument Sans', sans-serif; font-size: 14px;
+    outline: none; transition: border-color 0.2s;
+  }
+  .start-search:focus { border-color: var(--accent); }
+  .start-search::placeholder { color: var(--text3); }
+
+  .start-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .start-app {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    padding: 14px 8px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    cursor: pointer; transition: all 0.2s; color: var(--text2); font-size: 11px;
+    font-weight: 500; text-align: center;
+  }
+  .start-app .icon { font-size: 26px; }
+  .start-app:hover { background: var(--surface3); border-color: var(--border2); color: var(--text); transform: scale(1.05); }
+
+  .start-section-title {
+    font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700;
+    color: var(--text3); text-transform: uppercase; letter-spacing: 1.5px;
+  }
+
+  /* === NOVA AI PANEL === */
+  #nova-panel {
+    position: fixed; right: 0; top: 0; bottom: var(--taskbar-h);
+    width: 380px;
+    background: rgba(10,12,22,0.95);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+    border-left: 1px solid var(--border);
+    z-index: 150; display: flex; flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.35s cubic-bezier(0.4,0,0.2,1);
+  }
+  #nova-panel.open { transform: none; }
+
+  .nova-header {
+    padding: 20px 20px 14px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .nova-orb {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: conic-gradient(from 0deg, var(--accent), var(--accent2), var(--accent3), var(--accent));
+    animation: spin 4s linear infinite; flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .nova-title { font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 700; }
+  .nova-subtitle { font-size: 12px; color: var(--text3); }
+
+  .nova-close { margin-left: auto; background: none; border: none; color: var(--text3); cursor: pointer; font-size: 20px; padding: 4px; }
+  .nova-close:hover { color: var(--text); }
+
+  .nova-messages {
+    flex: 1; overflow-y: auto; padding: 16px;
+    display: flex; flex-direction: column; gap: 12px;
+    scrollbar-width: thin; scrollbar-color: var(--surface3) transparent;
+  }
+
+  .nova-msg {
+    padding: 12px 14px; border-radius: 14px;
+    font-size: 13.5px; line-height: 1.55;
+    animation: fadeInMsg 0.3s ease;
+  }
+  @keyframes fadeInMsg { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .nova-msg.user { background: linear-gradient(135deg, rgba(108,139,255,0.2), rgba(167,139,250,0.15)); border: 1px solid rgba(108,139,255,0.3); align-self: flex-end; max-width: 85%; }
+  .nova-msg.ai { background: var(--surface2); border: 1px solid var(--border); align-self: flex-start; max-width: 90%; }
+  .nova-msg.ai .ai-label { font-size: 10px; font-weight: 700; color: var(--accent); letter-spacing: 1px; margin-bottom: 5px; font-family: 'Syne', sans-serif; }
+
+  .nova-input-row { padding: 14px 16px; border-top: 1px solid var(--border); display: flex; gap: 10px; }
+  .nova-input {
+    flex: 1; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 10px 14px; color: var(--text);
+    font-family: 'Instrument Sans', sans-serif; font-size: 13px; outline: none;
+    resize: none; height: 44px; transition: border-color 0.2s;
+  }
+  .nova-input:focus { border-color: var(--accent); }
+  .nova-send {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none; border-radius: var(--radius-sm); padding: 10px 16px;
+    color: white; cursor: pointer; font-size: 16px; transition: all 0.2s;
+  }
+  .nova-send:hover { transform: scale(1.08); }
+
+  .nova-thinking {
+    display: flex; gap: 6px; padding: 14px; align-items: center;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 14px; align-self: flex-start;
+  }
+  .nova-thinking span {
+    width: 8px; height: 8px; background: var(--accent); border-radius: 50%;
+    animation: bounce 1.2s ease-in-out infinite;
+  }
+  .nova-thinking span:nth-child(2) { animation-delay: 0.2s; }
+  .nova-thinking span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%,80%,100% { transform: scale(0.6); opacity: 0.4; } 40% { transform: scale(1); opacity: 1; } }
+
+  /* quick actions */
+  .nova-quick { padding: 0 16px 14px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .nova-chip {
+    padding: 6px 12px; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 20px; font-size: 11.5px; color: var(--text2); cursor: pointer;
+    transition: all 0.15s; font-family: 'Instrument Sans', sans-serif;
+  }
+  .nova-chip:hover { background: var(--surface3); border-color: var(--accent); color: var(--accent); }
+
+  /* === NOTIFICATION CENTER === */
+  #notif-center {
+    position: fixed; right: 20px; top: 20px;
+    display: flex; flex-direction: column; gap: 10px;
+    z-index: 400; pointer-events: none;
+    width: 320px;
+  }
+  .notif {
+    background: rgba(14,16,26,0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius); padding: 14px 16px;
+    display: flex; gap: 12px; align-items: flex-start;
+    pointer-events: auto; cursor: pointer;
+    animation: notifIn 0.4s cubic-bezier(0.34,1.56,0.64,1);
+    transition: opacity 0.3s;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+  @keyframes notifIn { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .notif-icon { font-size: 22px; flex-shrink: 0; }
+  .notif-title { font-size: 13px; font-weight: 600; font-family: 'Syne', sans-serif; }
+  .notif-body { font-size: 12px; color: var(--text2); margin-top: 3px; line-height: 1.4; }
+  .notif-time { font-size: 10px; color: var(--text3); margin-top: 5px; font-family: 'DM Mono', monospace; }
+
+  /* === APP: NOVA SPATIAL WORKSPACE === */
+  .spatial-canvas {
+    flex: 1; position: relative; overflow: hidden;
+    background: radial-gradient(circle at 30% 40%, rgba(108,139,255,0.05) 0%, transparent 50%);
+  }
+  .spatial-node {
+    position: absolute; padding: 12px 16px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); cursor: grab;
+    font-size: 13px; max-width: 180px;
+    transition: box-shadow 0.2s, border-color 0.2s;
+    line-height: 1.4;
+  }
+  .spatial-node:active { cursor: grabbing; }
+  .spatial-node:hover { border-color: var(--accent); box-shadow: 0 0 20px rgba(108,139,255,0.2); }
+  .spatial-node.central {
+    background: linear-gradient(135deg, rgba(108,139,255,0.15), rgba(167,139,250,0.1));
+    border-color: var(--accent); font-weight: 600;
+    box-shadow: 0 0 30px rgba(108,139,255,0.25);
+  }
+  .spatial-toolbar { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
+  .sp-btn { padding: 6px 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text2); font-size: 12px; cursor: pointer; transition: all 0.15s; }
+  .sp-btn:hover { background: var(--surface3); color: var(--text); }
+  .sp-label { font-family: 'Syne', sans-serif; font-size: 12px; color: var(--text3); margin-left: auto; }
+  #spatial-canvas-el { position: absolute; inset: 0; pointer-events: none; }
+
+  /* === APP: TERMINAL === */
+  .terminal-body {
+    flex: 1; padding: 14px; overflow-y: auto;
+    font-family: 'DM Mono', monospace; font-size: 13px;
+    background: rgba(0,0,0,0.3); line-height: 1.7;
+    scrollbar-width: thin; scrollbar-color: var(--surface3) transparent;
+  }
+  .term-line { }
+  .term-line .prompt { color: var(--accent3); }
+  .term-line .cmd { color: var(--text); }
+  .term-output { color: var(--text2); }
+  .term-error { color: var(--red); }
+  .term-input-row { display: flex; align-items: center; padding: 10px 14px; border-top: 1px solid var(--border); background: rgba(0,0,0,0.2); flex-shrink: 0; }
+  .term-prompt-sym { font-family: 'DM Mono', monospace; font-size: 13px; color: var(--accent3); margin-right: 8px; }
+  .term-input { flex: 1; background: none; border: none; color: var(--text); font-family: 'DM Mono', monospace; font-size: 13px; outline: none; }
+
+  /* === APP: FILES === */
+  .files-sidebar { width: 160px; border-right: 1px solid var(--border); padding: 14px 12px; flex-shrink: 0; overflow-y: auto; }
+  .files-main { flex: 1; padding: 14px; overflow-y: auto; }
+  .files-path { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text2); font-family: 'DM Mono', monospace; flex-shrink: 0; }
+  .sidebar-item { padding: 7px 10px; border-radius: 8px; font-size: 13px; cursor: pointer; color: var(--text2); display: flex; align-items: center; gap: 8px; transition: all 0.15s; }
+  .sidebar-item:hover, .sidebar-item.active { background: var(--surface2); color: var(--text); }
+  .sidebar-section { font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text3); font-weight: 700; padding: 10px 10px 4px; font-family: 'Syne', sans-serif; }
+  .files-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 12px; }
+  .file-item { display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 12px 8px; border-radius: var(--radius-sm); cursor: pointer; transition: all 0.15s; }
+  .file-item:hover { background: var(--surface2); }
+  .file-item .icon { font-size: 30px; }
+  .file-item .name { font-size: 11px; text-align: center; color: var(--text2); line-height: 1.3; }
+  .files-body { flex: 1; display: flex; overflow: hidden; }
+
+  /* === APP: SETTINGS === */
+  .settings-sidebar { width: 200px; border-right: 1px solid var(--border); padding: 16px 12px; flex-shrink: 0; }
+  .settings-main { flex: 1; padding: 20px; overflow-y: auto; }
+  .settings-body { flex: 1; display: flex; overflow: hidden; }
+  .settings-nav-item { padding: 9px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; color: var(--text2); display: flex; align-items: center; gap: 10px; transition: all 0.15s; }
+  .settings-nav-item:hover, .settings-nav-item.active { background: var(--surface2); color: var(--text); }
+  .settings-section { margin-bottom: 28px; }
+  .settings-section-title { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; margin-bottom: 12px; color: var(--text); }
+  .settings-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 6px; }
+  .settings-row-label { font-size: 13px; }
+  .settings-row-desc { font-size: 11px; color: var(--text3); margin-top: 2px; }
+  .toggle { width: 40px; height: 22px; background: var(--surface3); border-radius: 11px; cursor: pointer; position: relative; transition: background 0.2s; flex-shrink: 0; border: none; }
+  .toggle.on { background: var(--accent); }
+  .toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; background: white; border-radius: 50%; transition: transform 0.2s; }
+  .toggle.on::after { transform: translateX(18px); }
+  .slider-input { -webkit-appearance: none; width: 120px; height: 4px; border-radius: 2px; background: var(--surface3); outline: none; }
+  .slider-input::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); cursor: pointer; }
+  .color-swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+  .swatch { width: 28px; height: 28px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: all 0.15s; }
+  .swatch.active, .swatch:hover { border-color: white; transform: scale(1.1); }
+
+  /* === APP: FOCUS MODE === */
+  .focus-body { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; padding: 30px; }
+  .focus-timer { font-family: 'Syne', sans-serif; font-size: 72px; font-weight: 800; letter-spacing: -2px; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .focus-ring { width: 200px; height: 200px; position: relative; }
+  .focus-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .focus-ring-track { fill: none; stroke: var(--surface3); stroke-width: 8; }
+  .focus-ring-fill { fill: none; stroke-width: 8; stroke-linecap: round; transition: stroke-dashoffset 1s linear; }
+  .focus-task { font-size: 15px; color: var(--text2); text-align: center; max-width: 280px; }
+  .focus-controls { display: flex; gap: 12px; }
+  .focus-btn { padding: 10px 24px; border-radius: 10px; font-size: 14px; cursor: pointer; transition: all 0.2s; font-family: 'Instrument Sans', sans-serif; font-weight: 500; }
+  .focus-btn.primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); border: none; color: white; box-shadow: 0 4px 20px rgba(108,139,255,0.3); }
+  .focus-btn.primary:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(108,139,255,0.5); }
+  .focus-btn.secondary { background: var(--surface2); border: 1px solid var(--border); color: var(--text2); }
+  .focus-btn.secondary:hover { background: var(--surface3); color: var(--text); }
+  .focus-mode-task { width: 80%; }
+  .focus-mode-task input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; color: var(--text); font-family: 'Instrument Sans', sans-serif; font-size: 14px; outline: none; text-align: center; }
+
+  /* === APP: NOTEPAD === */
+  .notepad-toolbar { padding: 10px 16px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+  .notepad-btn { padding: 5px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text2); font-size: 12px; cursor: pointer; transition: all 0.15s; }
+  .notepad-btn:hover { background: var(--surface3); color: var(--text); }
+  .notepad-content { flex: 1; padding: 20px; font-family: 'Instrument Sans', sans-serif; font-size: 14px; color: var(--text); background: none; border: none; outline: none; resize: none; line-height: 1.7; }
+
+  /* === APP: MEDIA PLAYER === */
+  .player-body { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; padding: 24px; }
+  .player-art { width: 160px; height: 160px; border-radius: 16px; background: linear-gradient(135deg, var(--accent), var(--accent2), var(--accent3)); display: flex; align-items: center; justify-content: center; font-size: 48px; box-shadow: 0 20px 60px rgba(108,139,255,0.3); }
+  .player-art.playing { animation: albumSpin 8s linear infinite; }
+  @keyframes albumSpin { to { transform: rotate(360deg); } }
+  .player-info { text-align: center; }
+  .player-title { font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 700; }
+  .player-sub { font-size: 13px; color: var(--text3); margin-top: 4px; }
+  .player-progress { width: 100%; background: var(--surface3); height: 4px; border-radius: 2px; cursor: pointer; }
+  .player-progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 2px; transition: width 0.5s linear; }
+  .player-controls { display: flex; gap: 16px; align-items: center; }
+  .player-ctrl { background: none; border: none; color: var(--text2); font-size: 22px; cursor: pointer; transition: all 0.2s; padding: 6px; }
+  .player-ctrl:hover { color: var(--text); transform: scale(1.1); }
+  .player-ctrl.play { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; border-radius: 50%; width: 48px; height: 48px; font-size: 20px; box-shadow: 0 8px 24px rgba(108,139,255,0.4); }
+  .player-vol { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text3); width: 100%; }
+  .vol-bar { flex: 1; height: 3px; background: var(--surface3); border-radius: 2px; cursor: pointer; }
+  .vol-fill { width: 70%; height: 100%; background: var(--accent); border-radius: 2px; }
+
+  /* === PREDICTIVE TASKBAR === */
+  .predict-bar {
+    position: fixed; bottom: calc(var(--taskbar-h) + 10px); left: 50%; transform: translateX(-50%);
+    background: rgba(10,12,22,0.9); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border2); border-radius: 20px;
+    padding: 8px 14px; display: flex; gap: 10px; align-items: center;
+    z-index: 160; font-size: 12px; color: var(--text3);
+    animation: fadeIn 0.5s ease; box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+  }
+  .predict-chip { padding: 5px 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; cursor: pointer; transition: all 0.15s; color: var(--text2); }
+  .predict-chip:hover { background: var(--surface3); border-color: var(--accent); color: var(--accent); }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  /* === CONTEXT MENU === */
+  #context-menu {
+    position: fixed; background: rgba(14,16,26,0.95); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border2); border-radius: 12px; padding: 6px;
+    z-index: 500; min-width: 180px; box-shadow: var(--shadow);
+    animation: ctxIn 0.15s ease;
+    display: none;
+  }
+  @keyframes ctxIn { from { transform: scale(0.95); opacity: 0; } to { transform: none; opacity: 1; } }
+  .ctx-item { padding: 8px 12px; border-radius: 8px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 10px; color: var(--text2); transition: all 0.1s; }
+  .ctx-item:hover { background: var(--surface2); color: var(--text); }
+  .ctx-item .icon { font-size: 15px; }
+  .ctx-sep { height: 1px; background: var(--border); margin: 4px 0; }
+
+  /* === SCROLL === */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 3px; }
+
+  /* === BOOT SCREEN === */
+  #boot {
+    position: fixed; inset: 0; z-index: 9999;
+    background: #07080f;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 32px;
+    transition: opacity 0.6s;
+  }
+  #boot.fade { opacity: 0; pointer-events: none; }
+  .boot-logo { font-family: 'Syne', sans-serif; font-size: 52px; font-weight: 800; background: linear-gradient(135deg, var(--accent), var(--accent2), var(--accent3)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; letter-spacing: -1px; }
+  .boot-sub { font-size: 14px; color: var(--text3); letter-spacing: 3px; text-transform: uppercase; font-family: 'DM Mono', monospace; }
+  .boot-bar { width: 200px; height: 3px; background: var(--surface2); border-radius: 2px; overflow: hidden; }
+  .boot-bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 2px; animation: bootLoad 2.2s cubic-bezier(0.4,0,0.2,1) forwards; }
+  @keyframes bootLoad { from { width: 0; } to { width: 100%; } }
+  .boot-ver { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text3); }
+
+  /* === LIVE ISLAND === */
+  #live-island {
+    position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+    background: rgba(10,12,22,0.9); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border); border-radius: 24px;
+    padding: 8px 18px; z-index: 190;
+    display: flex; align-items: center; gap: 12px;
+    font-size: 12px; color: var(--text2);
+    transition: all 0.4s cubic-bezier(0.34,1.56,0.64,1);
+    cursor: pointer; box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  }
+  #live-island:hover { border-color: var(--border2); background: rgba(14,16,30,0.95); }
+  .island-indicator { width: 8px; height: 8px; border-radius: 50%; background: var(--accent3); box-shadow: 0 0 8px var(--accent3); }
+  .island-text { font-family: 'DM Mono', monospace; }
+
+  /* window resize handle */
+  .win-resize { position: absolute; bottom: 0; right: 0; width: 16px; height: 16px; cursor: nwse-resize; }
+  .win-resize::after { content: ''; position: absolute; bottom: 4px; right: 4px; width: 6px; height: 6px; border-right: 2px solid var(--border2); border-bottom: 2px solid var(--border2); }
+
+  /* === BROWSER === */
+  .browser-bar { display:flex; align-items:center; gap:8px; padding:10px 14px; border-bottom:1px solid var(--border); flex-shrink:0; background:rgba(0,0,0,0.2); }
+  .browser-nav { background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text2); padding:5px 9px; font-size:14px; cursor:pointer; transition:all 0.15s; }
+  .browser-nav:hover { background:var(--surface3); color:var(--text); }
+  .browser-url { flex:1; background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:7px 14px; color:var(--text); font-family:'DM Mono',monospace; font-size:12px; outline:none; transition:border-color 0.2s; }
+  .browser-url:focus { border-color:var(--accent); }
+  .browser-go { background:linear-gradient(135deg,var(--accent),var(--accent2)); border:none; border-radius:8px; padding:7px 14px; color:white; cursor:pointer; font-size:13px; transition:all 0.2s; }
+  .browser-go:hover { transform:scale(1.05); }
+  .browser-frame { flex:1; border:none; background:#fff; }
+  .browser-blocked { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:30px; text-align:center; }
+  .browser-blocked .big-icon { font-size:52px; }
+  .browser-blocked h3 { font-family:'Syne',sans-serif; font-size:18px; }
+  .browser-blocked p { font-size:13px; color:var(--text2); max-width:300px; line-height:1.6; }
+  .browser-open-btn { padding:10px 22px; background:linear-gradient(135deg,var(--accent),var(--accent2)); border:none; border-radius:10px; color:white; font-size:13px; cursor:pointer; transition:all 0.2s; font-family:'Instrument Sans',sans-serif; }
+  .browser-open-btn:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(108,139,255,0.4); }
+  .browser-bookmarks { padding:8px 14px; border-bottom:1px solid var(--border); display:flex; gap:8px; flex-wrap:wrap; flex-shrink:0; }
+  .bmark { padding:4px 10px; background:var(--surface); border:1px solid var(--border); border-radius:6px; font-size:11px; color:var(--text2); cursor:pointer; transition:all 0.15s; }
+  .bmark:hover { background:var(--surface2); color:var(--text); }
+
+  /* === CALCULATOR === */
+  .calc-body { flex:1; display:flex; flex-direction:column; padding:16px; gap:10px; background:rgba(0,0,0,0.15); }
+  .calc-display { background:rgba(0,0,0,0.3); border:1px solid var(--border); border-radius:12px; padding:16px 20px; text-align:right; }
+  .calc-expr { font-family:'DM Mono',monospace; font-size:12px; color:var(--text3); min-height:18px; }
+  .calc-val { font-family:'Syne',sans-serif; font-size:36px; font-weight:700; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .calc-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; flex:1; }
+  .calc-btn { border:1px solid var(--border); border-radius:10px; font-size:16px; cursor:pointer; transition:all 0.15s; font-family:'Syne',sans-serif; font-weight:600; display:flex; align-items:center; justify-content:center; }
+  .calc-btn:hover { transform:scale(1.05); filter:brightness(1.2); }
+  .calc-btn:active { transform:scale(0.96); }
+  .calc-btn.num { background:var(--surface2); color:var(--text); }
+  .calc-btn.op  { background:rgba(108,139,255,0.15); color:var(--accent); border-color:rgba(108,139,255,0.3); }
+  .calc-btn.eq  { background:linear-gradient(135deg,var(--accent),var(--accent2)); color:white; border-color:transparent; box-shadow:0 4px 16px rgba(108,139,255,0.35); }
+  .calc-btn.fn  { background:rgba(255,255,255,0.06); color:var(--text2); font-size:13px; }
+  .calc-btn.wide { grid-column:span 2; }
+
+  /* === PAINT === */
+  .paint-toolbar { display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid var(--border); flex-shrink:0; flex-wrap:wrap; }
+  .paint-tool-btn { padding:5px 10px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text2); font-size:12px; cursor:pointer; transition:all 0.15s; }
+  .paint-tool-btn:hover, .paint-tool-btn.active { background:var(--surface3); color:var(--text); border-color:var(--accent); }
+  .paint-colors { display:flex; gap:5px; }
+  .paint-swatch { width:22px; height:22px; border-radius:5px; cursor:pointer; border:2px solid transparent; transition:all 0.15s; flex-shrink:0; }
+  .paint-swatch:hover, .paint-swatch.active { border-color:white; transform:scale(1.15); }
+  .paint-canvas-wrap { flex:1; overflow:hidden; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.2); }
+  #paint-canvas { cursor:crosshair; border-radius:4px; }
+  .paint-size { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text3); }
+
+  /* === CHESS === */
+  .chess-wrap { flex:1; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:12px; padding:14px; overflow:hidden; }
+  .chess-board { display:grid; grid-template-columns:repeat(8,1fr); border:2px solid var(--border2); border-radius:8px; overflow:hidden; box-shadow:0 12px 40px rgba(0,0,0,0.5); }
+  .chess-cell { width:54px; height:54px; display:flex; align-items:center; justify-content:center; font-size:30px; cursor:pointer; transition:all 0.1s; position:relative; }
+  .chess-cell.light { background:#c8a97a; }
+  .chess-cell.dark  { background:#7d5c3f; }
+  .chess-cell:hover { filter:brightness(1.2); }
+  .chess-cell.selected { outline:3px solid var(--accent); outline-offset:-3px; }
+  .chess-cell.valid-move::after { content:''; position:absolute; width:22px; height:22px; background:rgba(108,139,255,0.5); border-radius:50%; }
+  .chess-status { font-family:'Syne',sans-serif; font-size:13px; color:var(--text2); }
+  .chess-controls { display:flex; gap:10px; }
+
+  /* === CALENDAR === */
+  .cal-body { flex:1; display:flex; flex-direction:column; padding:16px; gap:12px; overflow:hidden; }
+  .cal-header { display:flex; align-items:center; justify-content:space-between; }
+  .cal-month { font-family:'Syne',sans-serif; font-size:18px; font-weight:700; }
+  .cal-nav { background:var(--surface2); border:1px solid var(--border); border-radius:8px; color:var(--text2); width:32px; height:32px; cursor:pointer; font-size:16px; transition:all 0.15s; display:flex; align-items:center; justify-content:center; }
+  .cal-nav:hover { background:var(--surface3); color:var(--text); }
+  .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; flex:1; }
+  .cal-day-name { text-align:center; font-size:11px; font-weight:700; color:var(--text3); font-family:'Syne',sans-serif; padding:4px 0; text-transform:uppercase; letter-spacing:0.5px; }
+  .cal-day { display:flex; align-items:center; justify-content:center; border-radius:8px; font-size:13px; cursor:pointer; transition:all 0.15s; color:var(--text2); aspect-ratio:1; }
+  .cal-day:hover { background:var(--surface2); color:var(--text); }
+  .cal-day.today { background:linear-gradient(135deg,var(--accent),var(--accent2)); color:white; font-weight:700; box-shadow:0 4px 12px rgba(108,139,255,0.4); }
+  .cal-day.other-month { color:var(--text3); }
+  .cal-day.has-event::after { content:''; position:absolute; bottom:3px; width:4px; height:4px; border-radius:50%; background:var(--accent3); }
+  .cal-day { position:relative; }
+  .cal-events { border-top:1px solid var(--border); padding-top:12px; }
+  .cal-events-title { font-family:'Syne',sans-serif; font-size:12px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
+  .cal-event { padding:8px 12px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; font-size:12px; display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+  .cal-event-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+
+  /* === CODE EDITOR === */
+  .code-toolbar { display:flex; align-items:center; gap:8px; padding:8px 14px; border-bottom:1px solid var(--border); flex-shrink:0; }
+  .code-lang { background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text); font-size:12px; padding:4px 10px; font-family:'DM Mono',monospace; cursor:pointer; }
+  .code-run-btn { padding:5px 14px; background:linear-gradient(135deg,var(--accent3),#059669); border:none; border-radius:6px; color:white; font-size:12px; cursor:pointer; font-family:'Instrument Sans',sans-serif; font-weight:600; transition:all 0.2s; }
+  .code-run-btn:hover { transform:translateY(-1px); box-shadow:0 4px 14px rgba(52,211,153,0.4); }
+  .code-body { flex:1; display:flex; overflow:hidden; }
+  .code-gutter { width:40px; padding:14px 8px; background:rgba(0,0,0,0.2); border-right:1px solid var(--border); font-family:'DM Mono',monospace; font-size:13px; color:var(--text3); text-align:right; line-height:1.7; flex-shrink:0; user-select:none; overflow:hidden; }
+  .code-editor { flex:1; padding:14px; font-family:'DM Mono',monospace; font-size:13px; color:var(--text); background:transparent; border:none; outline:none; resize:none; line-height:1.7; tab-size:2; overflow-y:auto; }
+  .code-output { height:120px; border-top:1px solid var(--border); padding:10px 14px; font-family:'DM Mono',monospace; font-size:12px; color:var(--accent3); background:rgba(0,0,0,0.3); overflow-y:auto; flex-shrink:0; }
+  .code-output .err { color:var(--red); }
+</style>
+</head>
+<body>
+
+<!-- BOOT -->
+<div id="boot">
+  <div class="boot-logo">NovOS</div>
+  <div class="boot-sub">Next Generation</div>
+  <div class="boot-bar"><div class="boot-bar-fill"></div></div>
+  <div class="boot-ver">Version 1.0.0 · Web Edition</div>
+</div>
+
+<!-- WALLPAPER -->
+<div id="wallpaper"><canvas id="wp-canvas"></canvas></div>
+
+<!-- DESKTOP -->
+<div id="desktop"></div>
+
+<!-- LIVE ISLAND -->
+<div id="live-island">
+  <div class="island-indicator"></div>
+  <span class="island-text" id="island-text">NovOS Ready</span>
+</div>
+
+<!-- PREDICTIVE BAR -->
+<div class="predict-bar" id="predict-bar">
+  <span>✨ Suggested:</span>
+  <div class="predict-chip" onclick="openApp('nova')">Ask Nova AI</div>
+  <div class="predict-chip" onclick="openApp('focus')">Focus Mode</div>
+  <div class="predict-chip" onclick="openApp('notes')">Quick Note</div>
+</div>
+
+<!-- CONTEXT MENU -->
+<div id="context-menu">
+  <div class="ctx-item" onclick="closeCtx(); showNotif('🖼️','Wallpaper','Changing wallpaper...')"><span class="icon">🖼️</span>Change Wallpaper</div>
+  <div class="ctx-item" onclick="closeCtx(); openApp('nova')"><span class="icon">✨</span>Ask Nova AI</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" onclick="closeCtx(); openApp('settings')"><span class="icon">⚙️</span>Settings</div>
+  <div class="ctx-item" onclick="closeCtx(); showNotif('🔄','NovOS','Refreshing desktop...')"><span class="icon">🔄</span>Refresh</div>
+</div>
+
+<!-- NOVA PANEL -->
+<div id="nova-panel">
+  <div class="nova-header">
+    <div class="nova-orb"></div>
+    <div>
+      <div class="nova-title">Nova AI</div>
+      <div class="nova-subtitle">Your intelligent assistant</div>
+    </div>
+    <button class="nova-close" onclick="toggleNova()">×</button>
+  </div>
+  <div class="nova-quick">
+    <div class="nova-chip" onclick="sendNovaQuick('What can you do?')">What can you do?</div>
+    <div class="nova-chip" onclick="sendNovaQuick('Open the terminal for me')">Open terminal</div>
+    <div class="nova-chip" onclick="sendNovaQuick('Help me focus on work')">Focus mode</div>
+    <div class="nova-chip" onclick="sendNovaQuick('Explain NovOS features')">NovOS features</div>
+  </div>
+  <div class="nova-messages" id="nova-msgs">
+    <div class="nova-msg ai">
+      <div class="ai-label">NOVA AI</div>
+      Hi! I'm Nova, your AI-powered NovOS assistant. I can open apps, answer questions, help you stay focused, and more. Try asking me anything!
+    </div>
+  </div>
+  <div class="nova-input-row">
+    <textarea class="nova-input" id="nova-input" placeholder="Ask Nova anything..." rows="1" onkeydown="novaKey(event)"></textarea>
+    <button class="nova-send" onclick="sendNova()">➤</button>
+  </div>
+</div>
+
+<!-- NOTIFICATION CENTER -->
+<div id="notif-center"></div>
+
+<!-- TASKBAR -->
+<div id="taskbar">
+  <button id="start-btn" onclick="toggleStart()">⬡ NovOS</button>
+  <div id="taskbar-sep"></div>
+  <button class="dock-btn" onclick="openApp('nova')" id="dock-nova"><span class="icon">✨</span>Nova</button>
+  <button class="dock-btn" onclick="openApp('spatial')" id="dock-spatial"><span class="icon">🌐</span>Spatial</button>
+  <button class="dock-btn" onclick="openApp('files')" id="dock-files"><span class="icon">📁</span>Files</button>
+  <button class="dock-btn" onclick="openApp('terminal')" id="dock-terminal"><span class="icon">⌨️</span>Terminal</button>
+  <button class="dock-btn" onclick="openApp('focus')" id="dock-focus"><span class="icon">🎯</span>Focus</button>
+  <button class="dock-btn" onclick="openApp('media')" id="dock-media"><span class="icon">🎵</span>Media</button>
+  <button class="dock-btn" onclick="openApp('notes')" id="dock-notes"><span class="icon">📝</span>Notes</button>
+  <button class="dock-btn" onclick="openApp('settings')" id="dock-settings"><span class="icon">⚙️</span>Settings</button>
+  <button class="dock-btn" onclick="openApp('browser')" id="dock-browser"><span class="icon">🌍</span>Browser</button>
+  <button class="dock-btn" onclick="openApp('calc')" id="dock-calc"><span class="icon">🔢</span>Calc</button>
+  <button class="dock-btn" onclick="openApp('paint')" id="dock-paint"><span class="icon">🎨</span>Paint</button>
+  <button class="dock-btn" onclick="openApp('chess')" id="dock-chess"><span class="icon">♟️</span>Chess</button>
+  <button class="dock-btn" onclick="openApp('calendar')" id="dock-calendar"><span class="icon">📅</span>Calendar</button>
+  <button class="dock-btn" onclick="openApp('code')" id="dock-code"><span class="icon">💻</span>Code</button>
+  <div style="margin-left:auto"></div>
+  <button class="dock-btn" onclick="toggleNova()" style="border-color:var(--accent2);color:var(--accent2)"><span class="icon">🤖</span>AI</button>
+  <div id="taskbar-sep"></div>
+  <div id="taskbar-clock" onclick="showNotif('🕐','Clock',''+new Date().toLocaleString())">
+    <div id="clock-time">00:00</div>
+    <span id="clock-date">Loading...</span>
+  </div>
+</div>
+
+<!-- START MENU -->
+<div id="start-menu">
+  <input class="start-search" placeholder="🔍  Search apps, files, anything..." id="start-search-input" oninput="filterApps(this.value)">
+  <div class="start-section-title">Applications</div>
+  <div class="start-grid" id="start-grid">
+    <div class="start-app" onclick="openApp('nova');closeStart()"><div class="icon">✨</div>Nova AI</div>
+    <div class="start-app" onclick="openApp('spatial');closeStart()"><div class="icon">🌐</div>Spatial</div>
+    <div class="start-app" onclick="openApp('files');closeStart()"><div class="icon">📁</div>Files</div>
+    <div class="start-app" onclick="openApp('terminal');closeStart()"><div class="icon">⌨️</div>Terminal</div>
+    <div class="start-app" onclick="openApp('focus');closeStart()"><div class="icon">🎯</div>Focus</div>
+    <div class="start-app" onclick="openApp('media');closeStart()"><div class="icon">🎵</div>Media</div>
+    <div class="start-app" onclick="openApp('notes');closeStart()"><div class="icon">📝</div>Notes</div>
+    <div class="start-app" onclick="openApp('settings');closeStart()"><div class="icon">⚙️</div>Settings</div>
+    <div class="start-app" onclick="openApp('browser');closeStart()"><div class="icon">🌍</div>Browser</div>
+    <div class="start-app" onclick="openApp('calc');closeStart()"><div class="icon">🔢</div>Calculator</div>
+    <div class="start-app" onclick="openApp('paint');closeStart()"><div class="icon">🎨</div>Paint</div>
+    <div class="start-app" onclick="openApp('chess');closeStart()"><div class="icon">♟️</div>Chess</div>
+    <div class="start-app" onclick="openApp('calendar');closeStart()"><div class="icon">📅</div>Calendar</div>
+    <div class="start-app" onclick="openApp('code');closeStart()"><div class="icon">💻</div>Code Editor</div>
+  </div>
+  <div class="start-section-title" style="margin-top:4px">Quick Actions</div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <div class="predict-chip" onclick="showNotif('🌙','Sleep','Entering sleep mode...');closeStart()">🌙 Sleep</div>
+    <div class="predict-chip" onclick="showNotif('🔄','Restart','Restarting NovOS...');closeStart()">🔄 Restart</div>
+    <div class="predict-chip" onclick="showNotif('🔒','Lock','Screen locked');closeStart()">🔒 Lock</div>
+    <div class="predict-chip" onclick="toggleNova();closeStart()">✨ Ask Nova</div>
+  </div>
+</div>
+
+<script>
+// ===== GLOBALS =====
+let windows = {}, zTop = 10, novaOpen = false, startOpen = false;
+const CLAUDE_API = "https://api.anthropic.com/v1/messages";
+
+// ===== WALLPAPER PARTICLES =====
+(function() {
+  const canvas = document.getElementById('wp-canvas');
+  const ctx = canvas.getContext('2d');
+  let pts = [];
+  function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+  resize(); window.addEventListener('resize', resize);
+  for (let i = 0; i < 80; i++) pts.push({ x: Math.random()*window.innerWidth, y: Math.random()*window.innerHeight, vx: (Math.random()-0.5)*0.3, vy: (Math.random()-0.5)*0.3, r: Math.random()*2+0.5 });
+  function draw() {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    pts.forEach(p => {
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(108,139,255,0.6)'; ctx.fill();
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < 0) p.x = canvas.width; if (p.x > canvas.width) p.x = 0;
+      if (p.y < 0) p.y = canvas.height; if (p.y > canvas.height) p.y = 0;
+    });
+    // draw faint lines between close points
+    for (let i = 0; i < pts.length; i++) for (let j = i+1; j < pts.length; j++) {
+      const dx = pts[i].x - pts[j].x, dy = pts[i].y - pts[j].y;
+      const d = Math.sqrt(dx*dx+dy*dy);
+      if (d < 120) { ctx.beginPath(); ctx.moveTo(pts[i].x,pts[i].y); ctx.lineTo(pts[j].x,pts[j].y); ctx.strokeStyle = `rgba(108,139,255,${0.12*(1-d/120)})`; ctx.lineWidth=0.5; ctx.stroke(); }
+    }
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ===== CLOCK =====
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock-time').textContent = now.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  document.getElementById('clock-date').textContent = now.toLocaleDateString([], {weekday:'short',month:'short',day:'numeric'});
+}
+updateClock(); setInterval(updateClock, 1000);
+
+// ===== BOOT =====
+setTimeout(() => { document.getElementById('boot').classList.add('fade'); setTimeout(() => document.getElementById('boot').remove(), 700); }, 2500);
+setTimeout(() => showNotif('👋', 'Welcome to NovOS', 'Click apps in the dock or use ⬡ NovOS to get started!'), 3200);
+setTimeout(() => updateIsland('🎓 Demo build — Web & RPi compatible'), 3500);
+setTimeout(() => updateIsland('NovOS Ready'), 6000);
+
+// ===== ISLAND =====
+function updateIsland(text) {
+  document.getElementById('island-text').textContent = text;
+  const el = document.getElementById('live-island');
+  el.style.transform = 'translateX(-50%) scale(1.04)';
+  setTimeout(() => el.style.transform = 'translateX(-50%) scale(1)', 400);
+}
+
+// ===== NOTIFICATIONS =====
+function showNotif(icon, title, body) {
+  const c = document.getElementById('notif-center');
+  const n = document.createElement('div');
+  n.className = 'notif';
+  n.innerHTML = `<div class="notif-icon">${icon}</div><div><div class="notif-title">${title}</div><div class="notif-body">${body}</div><div class="notif-time">just now</div></div>`;
+  n.onclick = () => n.style.opacity = '0', setTimeout(() => n.remove(), 300);
+  c.appendChild(n);
+  setTimeout(() => { n.style.opacity='0'; setTimeout(()=>n.remove(),300); }, 5000);
+}
+
+// ===== WINDOW SYSTEM =====
+function createWindow(id, title, icon, width, height, content, x, y) {
+  if (windows[id]) { focusWindow(id); if (windows[id].el.classList.contains('minimized')) windows[id].el.classList.remove('minimized'); return; }
+  const el = document.createElement('div');
+  el.className = 'window'; el.id = 'win-'+id;
+  el.style.cssText = `width:${width}px;height:${height}px;left:${x||Math.random()*200+80}px;top:${y||Math.random()*100+40}px;z-index:${++zTop}`;
+  el.innerHTML = `
+    <div class="win-titlebar" onmousedown="startDrag(event,'${id}')">
+      <div class="win-controls">
+        <button class="win-btn close" onclick="closeWindow('${id}')"></button>
+        <button class="win-btn min" onclick="minimizeWindow('${id}')"></button>
+        <button class="win-btn max" onclick="toggleMaxWindow('${id}')"></button>
+      </div>
+      <span class="win-icon">${icon}</span>
+      <span class="win-title">${title}</span>
+    </div>
+    <div class="win-body" id="body-${id}">${content}</div>
+    <div class="win-resize" onmousedown="startResize(event,'${id}')"></div>
+  `;
+  document.getElementById('desktop').appendChild(el);
+  windows[id] = { el, maximized: false };
+  focusWindow(id);
+  el.addEventListener('mousedown', () => focusWindow(id));
+  // animate in
+  el.style.transform = 'scale(0.92)'; el.style.opacity = '0';
+  requestAnimationFrame(() => { el.style.transition = 'transform 0.25s cubic-bezier(0.34,1.56,0.64,1), opacity 0.2s'; el.style.transform = ''; el.style.opacity = '1'; });
+  setTimeout(() => el.style.transition = '', 300);
+  updateDockActive(id, true);
+  return el;
+}
+
+function focusWindow(id) {
+  Object.keys(windows).forEach(k => windows[k].el.classList.remove('active'));
+  if (windows[id]) { windows[id].el.classList.add('active'); windows[id].el.style.zIndex = ++zTop; }
+}
+
+function closeWindow(id) {
+  if (!windows[id]) return;
+  const el = windows[id].el;
+  el.style.transition = 'transform 0.2s, opacity 0.2s';
+  el.style.transform = 'scale(0.9)'; el.style.opacity = '0';
+  setTimeout(() => { el.remove(); delete windows[id]; updateDockActive(id, false); }, 200);
+}
+
+function minimizeWindow(id) { windows[id] && windows[id].el.classList.toggle('minimized'); }
+function toggleMaxWindow(id) {
+  if (!windows[id]) return;
+  windows[id].maximized = !windows[id].maximized;
+  windows[id].el.classList.toggle('maximized', windows[id].maximized);
+}
+
+function updateDockActive(id, active) {
+  const btn = document.getElementById('dock-'+id);
+  if (btn) btn.classList.toggle('active', active);
+}
+
+// ===== DRAG =====
+let dragging = null;
+function startDrag(e, id) {
+  if (e.target.classList.contains('win-btn') || windows[id].maximized) return;
+  const el = windows[id].el;
+  const ox = e.clientX - el.offsetLeft, oy = e.clientY - el.offsetTop;
+  const mv = (e) => { el.style.left = (e.clientX-ox)+'px'; el.style.top = Math.max(0,e.clientY-oy)+'px'; };
+  const up = () => { document.removeEventListener('mousemove',mv); document.removeEventListener('mouseup',up); };
+  document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up);
+}
+
+// ===== RESIZE =====
+function startResize(e, id) {
+  e.stopPropagation();
+  const el = windows[id].el;
+  const sx = e.clientX, sy = e.clientY, sw = el.offsetWidth, sh = el.offsetHeight;
+  const mv = (e) => { el.style.width = Math.max(320,sw+(e.clientX-sx))+'px'; el.style.height = Math.max(200,sh+(e.clientY-sy))+'px'; };
+  const up = () => { document.removeEventListener('mousemove',mv); document.removeEventListener('mouseup',up); };
+  document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up);
+  e.preventDefault();
+}
+
+// ===== START MENU =====
+function toggleStart() { startOpen = !startOpen; document.getElementById('start-menu').classList.toggle('open', startOpen); }
+function closeStart() { startOpen = false; document.getElementById('start-menu').classList.remove('open'); }
+function filterApps(v) {
+  document.querySelectorAll('.start-app').forEach(a => a.style.display = a.textContent.toLowerCase().includes(v.toLowerCase()) ? '' : 'none');
+}
+
+// ===== NOVA PANEL =====
+function toggleNova() { novaOpen = !novaOpen; document.getElementById('nova-panel').classList.toggle('open', novaOpen); }
+
+// ===== NOVA AI =====
+async function sendNova() {
+  const input = document.getElementById('nova-input');
+  const msg = input.value.trim(); if (!msg) return;
+  input.value = '';
+  appendNovaMsg(msg, 'user');
+  // Check for OS commands
+  const lower = msg.toLowerCase();
+  if (lower.includes('open terminal') || lower.includes('launch terminal')) { openApp('terminal'); appendNovaMsg("Opening the Terminal for you! 🖥️", 'ai'); updateIsland('🖥️ Terminal opened'); return; }
+  if (lower.includes('focus') || lower.includes('pomodoro')) { openApp('focus'); appendNovaMsg("Starting Focus Mode to help you concentrate! 🎯", 'ai'); return; }
+  if (lower.includes('open files') || lower.includes('file manager')) { openApp('files'); appendNovaMsg("Here's your File Manager! 📁", 'ai'); return; }
+  if (lower.includes('open settings') || lower.includes('settings')) { openApp('settings'); appendNovaMsg("Opening Settings for you! ⚙️", 'ai'); return; }
+  if (lower.includes('play music') || lower.includes('open media') || lower.includes('music')) { openApp('media'); appendNovaMsg("Opening the Media Player! 🎵", 'ai'); return; }
+  if (lower.includes('note') || lower.includes('write')) { openApp('notes'); appendNovaMsg("Here's your Notepad! 📝", 'ai'); return; }
+  if (lower.includes('spatial') || lower.includes('mind map')) { openApp('spatial'); appendNovaMsg("Opening the Spatial Workspace! 🌐", 'ai'); return; }
+  // AI call
+  const thinking = document.createElement('div');
+  thinking.className = 'nova-thinking'; thinking.innerHTML = '<span></span><span></span><span></span>';
+  document.getElementById('nova-msgs').appendChild(thinking);
+  scrollNovaBottom();
+  try {
+    const res = await fetch(CLAUDE_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514', max_tokens: 512,
+      system: "You are Nova, a friendly, witty AI assistant built into NovOS — a next-gen HTML-based operating system concept. Keep responses concise (2-4 sentences max). You can open apps by mentioning them. NovOS has: Nova AI panel, Spatial Workspace (mind maps/ideas), Files, Terminal, Focus Mode (pomodoro), Media Player, Notepad, Settings. Be helpful, fun, and futuristic.",
+      messages: [{ role:'user', content: msg }]
+    })});
+    thinking.remove();
+    if (res.ok) {
+      const d = await res.json();
+      const txt = d.content?.find(c=>c.type==='text')?.text || "I'm here to help!";
+      appendNovaMsg(txt, 'ai');
+      updateIsland('✨ Nova responded');
+    } else { appendNovaMsg("I'm having trouble connecting right now, but I can still open apps and help with OS tasks!", 'ai'); }
+  } catch(e) { thinking.remove(); appendNovaMsg("I'm running in offline mode — I can still open apps and control NovOS for you! Try: 'open terminal', 'focus mode', etc.", 'ai'); }
+}
+
+function appendNovaMsg(text, type) {
+  const msgs = document.getElementById('nova-msgs');
+  const div = document.createElement('div');
+  div.className = 'nova-msg ' + type;
+  if (type === 'ai') div.innerHTML = `<div class="ai-label">NOVA AI</div>${text}`;
+  else div.textContent = text;
+  msgs.appendChild(div);
+  scrollNovaBottom();
+}
+
+function scrollNovaBottom() { const m = document.getElementById('nova-msgs'); m.scrollTop = m.scrollHeight; }
+function novaKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendNova(); } }
+function sendNovaQuick(msg) { document.getElementById('nova-input').value = msg; sendNova(); if (!novaOpen) toggleNova(); }
+
+// ===== APPS =====
+function openApp(id) {
+  closeStart();
+  switch(id) {
+    case 'nova': toggleNova(); break;
+    case 'spatial': openSpatial(); break;
+    case 'files': openFiles(); break;
+    case 'terminal': openTerminal(); break;
+    case 'focus': openFocus(); break;
+    case 'media': openMedia(); break;
+    case 'notes': openNotes(); break;
+    case 'settings': openSettings(); break;
+    case 'browser':  openBrowser(); break;
+    case 'calc':     openCalc(); break;
+    case 'paint':    openPaint(); break;
+    case 'chess':    openChess(); break;
+    case 'calendar': openCalendar(); break;
+    case 'code':     openCode(); break;
+  }
+}
+
+// ===== SPATIAL WORKSPACE =====
+function openSpatial() {
+  const content = `
+    <div class="spatial-toolbar">
+      <button class="sp-btn" onclick="addSpatialNode()">+ Node</button>
+      <button class="sp-btn" onclick="clearSpatial()">Clear</button>
+      <button class="sp-btn" onclick="addSpatialPreset()">Load Example</button>
+      <span class="sp-label">Drag nodes · Double-click to edit</span>
+    </div>
+    <div class="spatial-canvas" id="spatial-canvas">
+      <canvas id="spatial-canvas-el"></canvas>
+    </div>
+  `;
+  const w = createWindow('spatial', 'Spatial Workspace', '🌐', 700, 500, content, 100, 60);
+  if (w) setTimeout(() => initSpatial(), 100);
+}
+
+let spatialNodes = [];
+let spatialLines = [];
+
+function initSpatial() {
+  spatialNodes = [
+    { id:1, x:310, y:200, text:'My Project', central:true },
+    { id:2, x:100, y:100, text:'Research', central:false },
+    { id:3, x:520, y:100, text:'Design', central:false },
+    { id:4, x:100, y:310, text:'Development', central:false },
+    { id:5, x:520, y:310, text:'Testing', central:false },
+  ];
+  spatialLines = [[1,2],[1,3],[1,4],[1,5]];
+  renderSpatial();
+}
+
+function renderSpatial() {
+  const canvas = document.getElementById('spatial-canvas');
+  if (!canvas) return;
+  canvas.querySelectorAll('.spatial-node').forEach(n=>n.remove());
+  const svgEl = document.getElementById('spatial-canvas-el');
+  if (svgEl) {
+    svgEl.innerHTML = '';
+    spatialLines.forEach(([a,b]) => {
+      const na = spatialNodes.find(n=>n.id===a), nb = spatialNodes.find(n=>n.id===b);
+      if (!na || !nb) return;
+      const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+      line.setAttribute('x1', na.x+70); line.setAttribute('y1', na.y+20);
+      line.setAttribute('x2', nb.x+70); line.setAttribute('y2', nb.y+20);
+      line.setAttribute('stroke','rgba(108,139,255,0.25)'); line.setAttribute('stroke-width','2');
+      svgEl.appendChild(line);
+    });
+  }
+  spatialNodes.forEach(node => {
+    const el = document.createElement('div');
+    el.className = 'spatial-node' + (node.central ? ' central' : '');
+    el.style.left = node.x+'px'; el.style.top = node.y+'px';
+    el.textContent = node.text;
+    el.ondblclick = () => { const t = prompt('Edit node:', node.text); if (t) { node.text = t; renderSpatial(); }};
+    let ox, oy;
+    el.onmousedown = e => {
+      ox = e.clientX - node.x; oy = e.clientY - node.y; e.stopPropagation();
+      const mv = e2 => { node.x = e2.clientX-ox; node.y = e2.clientY-oy; el.style.left=node.x+'px'; el.style.top=node.y+'px'; renderSpatial(); };
+      const up = () => { document.removeEventListener('mousemove',mv); document.removeEventListener('mouseup',up); };
+      document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up);
+    };
+    canvas.appendChild(el);
+  });
+  // Resize SVG
+  if (svgEl) { svgEl.setAttribute('width', canvas.offsetWidth); svgEl.setAttribute('height', canvas.offsetHeight); }
+}
+
+function addSpatialNode() {
+  const t = prompt('Node text:', 'New Idea');
+  if (t) { const id = Date.now(); spatialNodes.push({ id, x:Math.random()*300+50, y:Math.random()*200+50, text:t, central:false }); if (spatialNodes.length>1) spatialLines.push([spatialNodes[0].id, id]); renderSpatial(); }
+}
+
+function clearSpatial() { spatialNodes=[]; spatialLines=[]; renderSpatial(); }
+function addSpatialPreset() { initSpatial(); }
+
+// ===== TERMINAL =====
+let termHistory = [], termHistIdx = -1;
+let termFiles = { '/': ['documents','downloads','projects','readme.txt'], '/documents': ['report.pdf','notes.txt'], '/downloads': ['image.png'], '/projects': ['novos.html','app.js'] };
+let termCwd = '/';
+
+function openTerminal() {
+  const content = `
+    <div class="terminal-body" id="term-body">
+      <div class="term-line"><span style="color:var(--accent)">NovOS Terminal</span> v1.0 — Type <span style="color:var(--accent3)">help</span> for commands</div>
+    </div>
+    <div class="term-input-row">
+      <span class="term-prompt-sym">user@novos:~$</span>
+      <input class="term-input" id="term-input" placeholder="Type a command..." onkeydown="termKey(event)" autofocus>
+    </div>
+  `;
+  createWindow('terminal', 'Terminal', '⌨️', 560, 380, content, 140, 80);
+}
+
+function termKey(e) {
+  if (e.key === 'Enter') { runTermCmd(document.getElementById('term-input').value); }
+  else if (e.key === 'ArrowUp') { if (termHistIdx < termHistory.length-1) { termHistIdx++; e.target.value = termHistory[termHistory.length-1-termHistIdx]||''; } }
+  else if (e.key === 'ArrowDown') { termHistIdx = Math.max(-1, termHistIdx-1); e.target.value = termHistIdx>=0 ? termHistory[termHistory.length-1-termHistIdx]||'' : ''; }
+}
+
+function runTermCmd(cmd) {
+  cmd = cmd.trim(); if (!cmd) return;
+  termHistory.push(cmd); termHistIdx = -1;
+  const input = document.getElementById('term-input');
+  if (input) input.value = '';
+  const body = document.getElementById('term-body');
+  if (!body) return;
+  const addLine = (html, cls='') => { const d=document.createElement('div'); d.className='term-line'; d.innerHTML=`<span class="${cls}">${html}</span>`; body.appendChild(d); body.scrollTop=body.scrollHeight; };
+  addLine(`<span class="prompt">user@novos:${termCwd}$</span> <span class="cmd">${cmd}</span>`);
+  const parts = cmd.split(' ');
+  const c = parts[0].toLowerCase();
+  switch(c) {
+    case 'help': addLine('Available: ls, cd, pwd, echo, clear, date, whoami, uname, cat, mkdir, neofetch, open, exit'); break;
+    case 'ls': { const files = termFiles[termCwd] || []; addLine(files.map(f=>f.includes('.')?`<span style="color:var(--accent3)">${f}</span>`:`<span style="color:var(--accent)">${f}/</span>`).join('  ') || '(empty)'); break; }
+    case 'pwd': addLine(termCwd); break;
+    case 'cd': { const d=parts[1]||'/'; const np=d.startsWith('/')?d:termCwd+(termCwd==='/'?'':'/') +d; termCwd=termFiles[np]?np:(d==='..'?(termCwd.split('/').slice(0,-1).join('/')||'/'):termCwd); addLine(''); break; }
+    case 'echo': addLine(parts.slice(1).join(' ')); break;
+    case 'clear': body.innerHTML=''; break;
+    case 'date': addLine(new Date().toString()); break;
+    case 'whoami': addLine('user'); break;
+    case 'uname': addLine('NovOS 1.0.0 HTML/Web Kernel (x86_64 / RPi compatible)'); break;
+    case 'neofetch': addLine(`<pre style="color:var(--accent);line-height:1.4">
+  ███╗   ██╗ ██████╗ ██╗   ██╗ ██████╗ ███████╗
+  ████╗  ██║██╔═══██╗██║   ██║██╔═══██╗██╔════╝
+  ██╔██╗ ██║██║   ██║██║   ██║██║   ██║███████╗
+  ██║╚██╗██║██║   ██║╚██╗ ██╔╝██║   ██║╚════██║
+  ██║ ╚████║╚██████╔╝ ╚████╔╝ ╚██████╔╝███████║
+  ╚═╝  ╚═══╝ ╚═════╝   ╚═══╝   ╚═════╝ ╚══════╝
+</pre><span style="color:var(--text2)">OS: NovOS 1.0.0 Web Edition
+Kernel: HTML5/CSS3/JS (Browser-native)
+Platform: Web + Raspberry Pi
+AI: Nova (Claude-powered)
+Shell: NovShell 1.0
+Display: GPU-accelerated CSS</span>`); break;
+    case 'cat': { const f=parts[1]; if(!f) {addLine('Usage: cat <file>','term-error');break;} if(f==='readme.txt') addLine('Welcome to NovOS! A next-gen HTML operating system.'); else addLine(`cat: ${f}: No such file`,'term-error'); break; }
+    case 'mkdir': addLine(parts[1]?`mkdir: created directory '${parts[1]}'`:'Usage: mkdir <name>'); break;
+    case 'open': { if(parts[1]) { openApp(parts[1]); addLine(`Opening ${parts[1]}...`); } else addLine('Usage: open <app>'); break; }
+    case 'exit': closeWindow('terminal'); break;
+    default: addLine(`novosh: command not found: ${c}. Try 'help'`,'term-error');
+  }
+}
+
+// ===== FILES =====
+function openFiles() {
+  const content = `
+    <div class="files-path"><span>📁</span><span id="files-path-text">/ Home</span></div>
+    <div class="files-body">
+      <div class="files-sidebar">
+        <div class="sidebar-section">Favourites</div>
+        <div class="sidebar-item active" onclick="loadDir('home')">🏠 Home</div>
+        <div class="sidebar-item" onclick="loadDir('docs')">📄 Documents</div>
+        <div class="sidebar-item" onclick="loadDir('dl')">⬇️ Downloads</div>
+        <div class="sidebar-item" onclick="loadDir('projects')">💻 Projects</div>
+        <div class="sidebar-section">Devices</div>
+        <div class="sidebar-item" onclick="showNotif('💾','Drive','NovOS System Drive — 32GB')">💾 System</div>
+        <div class="sidebar-item" onclick="showNotif('🔌','RPi','Raspberry Pi SD Card detected')">🍓 RPi SD</div>
+      </div>
+      <div class="files-main"><div class="files-grid" id="files-grid"></div></div>
+    </div>
+  `;
+  createWindow('files', 'Files', '📁', 600, 400, content, 160, 70);
+  setTimeout(() => loadDir('home'), 50);
+}
+
+const fileDirs = {
+  home: { name:'/ Home', items: [['📄','Documents','folder'],['⬇️','Downloads','folder'],['💻','Projects','folder'],['🎵','Music','folder'],['🖼️','Pictures','folder'],['📝','readme.txt','file'],['🔧','novos.html','file']] },
+  docs: { name:'/ Documents', items: [['📊','report.pdf','file'],['📝','notes.txt','file'],['📋','todo.txt','file'],['📁','Archive','folder']] },
+  dl: { name:'/ Downloads', items: [['🖼️','photo.png','file'],['📦','package.zip','file'],['🎵','song.mp3','file']] },
+  projects: { name:'/ Projects', items: [['💻','novos.html','file'],['📜','app.js','file'],['🎨','style.css','file'],['📋','README.md','file']] },
+};
+
+function loadDir(id) {
+  const dir = fileDirs[id]; if (!dir) return;
+  const p = document.getElementById('files-path-text'); if (p) p.textContent = dir.name;
+  const grid = document.getElementById('files-grid'); if (!grid) return;
+  grid.innerHTML = '';
+  dir.items.forEach(([icon, name, type]) => {
+    const d = document.createElement('div'); d.className = 'file-item';
+    d.innerHTML = `<div class="icon">${icon}</div><div class="name">${name}</div>`;
+    d.ondblclick = () => { if (type==='folder') showNotif('📁','Files',`Opened "${name}" folder`); else showNotif('📄','Files',`Opening "${name}"...`); };
+    grid.appendChild(d);
+  });
+  document.querySelectorAll('.sidebar-item').forEach(el => el.classList.toggle('active', el.textContent.toLowerCase().includes(id)));
+}
+
+// ===== FOCUS MODE =====
+let focusInterval = null, focusSeconds = 25*60, focusRunning = false, focusTotal = 25*60;
+
+function openFocus() {
+  const content = `
+    <div class="focus-body">
+      <div class="focus-mode-task"><input id="focus-task-input" placeholder="What are you working on?" value="Deep work session"></div>
+      <div class="focus-ring">
+        <svg viewBox="0 0 200 200">
+          <circle class="focus-ring-track" cx="100" cy="100" r="88"/>
+          <circle class="focus-ring-fill" cx="100" cy="100" r="88" id="focus-arc"
+            stroke="url(#fg)" stroke-dasharray="553" stroke-dashoffset="0"/>
+          <defs><linearGradient id="fg" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#6c8bff"/><stop offset="100%" stop-color="#a78bfa"/></linearGradient></defs>
+        </svg>
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column">
+          <div class="focus-timer" id="focus-timer">25:00</div>
+          <div style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace" id="focus-status">Ready</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:16px;align-items:center">
+        <button class="sp-btn" onclick="setFocusTime(25)">25m</button>
+        <button class="sp-btn" onclick="setFocusTime(45)">45m</button>
+        <button class="sp-btn" onclick="setFocusTime(5)">5m break</button>
+      </div>
+      <div class="focus-controls">
+        <button class="focus-btn primary" id="focus-play-btn" onclick="toggleFocus()">▶ Start</button>
+        <button class="focus-btn secondary" onclick="resetFocus()">↺ Reset</button>
+      </div>
+      <div style="font-size:12px;color:var(--text3);text-align:center">Stay in the flow. Nova AI will silence notifications.</div>
+    </div>
+  `;
+  createWindow('focus', 'Focus Mode', '🎯', 380, 480, content, 200, 60);
+}
+
+function setFocusTime(m) { resetFocus(); focusSeconds = m*60; focusTotal = m*60; updateFocusUI(); }
+function updateFocusUI() {
+  const m = Math.floor(focusSeconds/60), s = focusSeconds%60;
+  const t = document.getElementById('focus-timer'); if (t) t.textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  const arc = document.getElementById('focus-arc'); if (arc) { const pct = focusSeconds/focusTotal; arc.style.strokeDashoffset = 553*(1-pct); }
+}
+function toggleFocus() {
+  focusRunning = !focusRunning;
+  const btn = document.getElementById('focus-play-btn'); if (btn) btn.textContent = focusRunning ? '⏸ Pause' : '▶ Resume';
+  const st = document.getElementById('focus-status'); if (st) st.textContent = focusRunning ? 'Focusing...' : 'Paused';
+  if (focusRunning) {
+    if (focusInterval) clearInterval(focusInterval);
+    focusInterval = setInterval(() => {
+      if (!focusRunning) return;
+      focusSeconds--;
+      updateFocusUI();
+      if (focusSeconds <= 0) {
+        clearInterval(focusInterval); focusRunning = false;
+        showNotif('🎉','Focus Complete!','Great work! Time for a break.');
+        updateIsland('🎉 Focus session complete!');
+        const st = document.getElementById('focus-status'); if (st) st.textContent = 'Complete!';
+      }
+    }, 1000);
+  } else clearInterval(focusInterval);
+}
+function resetFocus() { focusRunning = false; clearInterval(focusInterval); focusSeconds = focusTotal; updateFocusUI(); const btn=document.getElementById('focus-play-btn'); if(btn) btn.textContent='▶ Start'; const st=document.getElementById('focus-status'); if(st) st.textContent='Ready'; }
+
+// ===== MEDIA PLAYER =====
+let mediaPlaying = false, mediaProgress = 0, mediaInterval;
+const tracks = [
+  { title: 'Synthetic Dreams', artist: 'NovOS Sounds', icon: '🎸' },
+  { title: 'Neural Pulse', artist: 'Digital Waves', icon: '🎹' },
+  { title: 'Horizon Protocol', artist: 'Future Bass', icon: '🎺' },
+];
+let trackIdx = 0;
+
+function openMedia() {
+  const content = `
+    <div class="player-body">
+      <div class="player-art" id="player-art">${tracks[trackIdx].icon}</div>
+      <div class="player-info">
+        <div class="player-title" id="player-title">${tracks[trackIdx].title}</div>
+        <div class="player-sub" id="player-sub">${tracks[trackIdx].artist}</div>
+      </div>
+      <div style="width:100%">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;margin-bottom:6px"><span id="player-cur">0:00</span><span>3:24</span></div>
+        <div class="player-progress" onclick="seekMedia(event)"><div class="player-progress-fill" id="player-prog" style="width:0%"></div></div>
+      </div>
+      <div class="player-controls">
+        <button class="player-ctrl" onclick="prevTrack()">⏮</button>
+        <button class="player-ctrl play" id="player-play" onclick="toggleMedia()">▶</button>
+        <button class="player-ctrl" onclick="nextTrack()">⏭</button>
+      </div>
+      <div class="player-vol"><span>🔈</span><div class="vol-bar" onclick="setVol(event)"><div class="vol-fill" id="vol-fill"></div></div><span>🔊</span></div>
+    </div>
+  `;
+  createWindow('media', 'Media Player', '🎵', 320, 440, content, 180, 60);
+}
+
+function toggleMedia() {
+  mediaPlaying = !mediaPlaying;
+  const btn = document.getElementById('player-play'); if (btn) btn.textContent = mediaPlaying ? '⏸' : '▶';
+  const art = document.getElementById('player-art'); if (art) art.classList.toggle('playing', mediaPlaying);
+  if (mediaPlaying) {
+    mediaInterval = setInterval(() => {
+      mediaProgress = Math.min(100, mediaProgress + 100/204);
+      const p = document.getElementById('player-prog'); if (p) p.style.width = mediaProgress+'%';
+      const t = Math.floor(mediaProgress*204/100); const cur = document.getElementById('player-cur'); if (cur) cur.textContent = `${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`;
+      if (mediaProgress >= 100) { nextTrack(); }
+    }, 1000);
+  } else clearInterval(mediaInterval);
+  updateIsland(mediaPlaying ? `🎵 ${tracks[trackIdx].title}` : 'NovOS Ready');
+}
+
+function nextTrack() { trackIdx=(trackIdx+1)%tracks.length; mediaProgress=0; updateTrackUI(); }
+function prevTrack() { trackIdx=(trackIdx-1+tracks.length)%tracks.length; mediaProgress=0; updateTrackUI(); }
+function updateTrackUI() {
+  const t = tracks[trackIdx];
+  const title=document.getElementById('player-title'); if(title) title.textContent=t.title;
+  const sub=document.getElementById('player-sub'); if(sub) sub.textContent=t.artist;
+  const art=document.getElementById('player-art'); if(art) art.textContent=t.icon;
+  const prog=document.getElementById('player-prog'); if(prog) prog.style.width='0%';
+}
+function seekMedia(e) { const rect=e.target.getBoundingClientRect(); mediaProgress=((e.clientX-rect.left)/rect.width)*100; const p=document.getElementById('player-prog'); if(p) p.style.width=mediaProgress+'%'; }
+function setVol(e) { const rect=e.target.getBoundingClientRect(); const v=((e.clientX-rect.left)/rect.width)*100; const f=document.getElementById('vol-fill'); if(f) f.style.width=v+'%'; }
+
+// ===== NOTES =====
+function openNotes() {
+  const content = `
+    <div class="notepad-toolbar">
+      <span style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--text2);">Notes</span>
+      <div style="flex:1"></div>
+      <button class="notepad-btn" onclick="saveNote()">💾 Save</button>
+      <button class="notepad-btn" onclick="clearNote()">🗑️ Clear</button>
+      <button class="notepad-btn" onclick="aiEnhanceNote()">✨ AI Enhance</button>
+    </div>
+    <textarea class="notepad-content" id="notepad-text" placeholder="Start typing your thoughts...
+
+NovOS Notes supports:
+• Rich text editing
+• AI enhancement (click ✨ AI Enhance)
+• Markdown-style writing
+
+Try writing something and letting Nova AI improve it!"></textarea>
+  `;
+  createWindow('notes', 'Notes', '📝', 480, 380, content, 120, 90);
+}
+
+function saveNote() { showNotif('💾','Notes','Note saved successfully!'); updateIsland('💾 Note saved'); }
+function clearNote() { const t=document.getElementById('notepad-text'); if(t) t.value=''; }
+async function aiEnhanceNote() {
+  const t = document.getElementById('notepad-text'); if (!t || !t.value.trim()) { showNotif('📝','Notes','Write something first!'); return; }
+  showNotif('✨','Nova AI','Enhancing your note...');
+  try {
+    const res = await fetch(CLAUDE_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:600, messages:[{ role:'user', content:`Please improve and enhance this note, keeping the core ideas but making it clearer and better structured. Return only the improved text, no preamble:\n\n${t.value}` }] }) });
+    if (res.ok) { const d=await res.json(); const txt=d.content?.find(c=>c.type==='text')?.text; if(txt) { t.value=txt; showNotif('✨','Nova AI','Note enhanced!'); updateIsland('✨ Note improved by Nova'); } }
+    else showNotif('⚠️','Nova AI','Could not enhance — AI offline'); 
+  } catch(e) { showNotif('⚠️','Nova AI','AI enhancement requires internet connection'); }
+}
+
+// ===== SETTINGS =====
+function openSettings() {
+  const content = `
+    <div class="settings-body">
+      <div class="settings-sidebar">
+        <div class="settings-nav-item active" onclick="settingsTab(this,'appearance')">🎨 Appearance</div>
+        <div class="settings-nav-item" onclick="settingsTab(this,'nova')">✨ Nova AI</div>
+        <div class="settings-nav-item" onclick="settingsTab(this,'system')">⚙️ System</div>
+        <div class="settings-nav-item" onclick="settingsTab(this,'about')">ℹ️ About</div>
+      </div>
+      <div class="settings-main" id="settings-main"></div>
+    </div>
+  `;
+  createWindow('settings', 'Settings', '⚙️', 580, 420, content, 150, 80);
+  setTimeout(() => loadSettingsTab('appearance'), 50);
+}
+
+function settingsTab(el, tab) {
+  document.querySelectorAll('.settings-nav-item').forEach(e=>e.classList.remove('active'));
+  el.classList.add('active'); loadSettingsTab(tab);
+}
+
+const settingsTabs = {
+  appearance: `
+    <div class="settings-section">
+      <div class="settings-section-title">Theme & Accent</div>
+      <div class="settings-row"><div><div class="settings-row-label">Dark Mode</div><div class="settings-row-desc">NovOS default dark theme</div></div><button class="toggle on" onclick="this.classList.toggle('on')"></button></div>
+      <div class="settings-row"><div><div class="settings-row-label">Glassmorphism Effects</div><div class="settings-row-desc">Blur & transparency on windows</div></div><button class="toggle on" onclick="this.classList.toggle('on')"></button></div>
+      <div class="settings-row"><div><div class="settings-row-label">Particle Wallpaper</div><div class="settings-row-desc">Animated background particles</div></div><button class="toggle on" onclick="this.classList.toggle('on')"></button></div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-section-title">Accent Color</div>
+      <div class="settings-row"><div class="settings-row-label">Choose color</div><div class="color-swatches">
+        <div class="swatch active" style="background:#6c8bff" onclick="setAccent('#6c8bff',this)"></div>
+        <div class="swatch" style="background:#34d399" onclick="setAccent('#34d399',this)"></div>
+        <div class="swatch" style="background:#f472b6" onclick="setAccent('#f472b6',this)"></div>
+        <div class="swatch" style="background:#fbbf24" onclick="setAccent('#fbbf24',this)"></div>
+        <div class="swatch" style="background:#f87171" onclick="setAccent('#f87171',this)"></div>
+        <div class="swatch" style="background:#a78bfa" onclick="setAccent('#a78bfa',this)"></div>
+      </div></div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-section-title">Display</div>
+      <div class="settings-row"><div class="settings-row-label">UI Scale</div><input type="range" class="slider-input" min="80" max="130" value="100" oninput="document.documentElement.style.fontSize=this.value+'%'"></div>
+    </div>
+  `,
+  nova: `
+    <div class="settings-section">
+      <div class="settings-section-title">Nova AI</div>
+      <div class="settings-row"><div><div class="settings-row-label">Nova AI Assistant</div><div class="settings-row-desc">Powered by Claude (Anthropic)</div></div><button class="toggle on" onclick="this.classList.toggle('on')"></button></div>
+      <div class="settings-row"><div><div class="settings-row-label">Predictive Suggestions</div><div class="settings-row-desc">Smart app & action suggestions</div></div><button class="toggle on" onclick="this.classList.toggle('on')"></button></div>
+      <div class="settings-row"><div><div class="settings-row-label">AI Note Enhancement</div><div class="settings-row-desc">Improve notes with AI</div></div><button class="toggle on" onclick="this.classList.toggle('on')"></button></div>
+      <div class="settings-row"><div><div class="settings-row-label">Focus DND Mode</div><div class="settings-row-desc">Nova silences notifications during focus</div></div><button class="toggle on" onclick="this.classList.toggle('on')"></button></div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-section-title">AI Model</div>
+      <div class="settings-row"><div class="settings-row-label" style="color:var(--accent3)">✓ Claude Sonnet 4 (Active)</div></div>
+    </div>
+  `,
+  system: `
+    <div class="settings-section">
+      <div class="settings-section-title">Performance</div>
+      <div class="settings-row"><div><div class="settings-row-label">Hardware Acceleration</div><div class="settings-row-desc">GPU-accelerated CSS rendering</div></div><button class="toggle on" onclick="this.classList.toggle('on')"></button></div>
+      <div class="settings-row"><div><div class="settings-row-label">Animations</div><div class="settings-row-desc">Window & UI animations</div></div><button class="toggle on" onclick="this.classList.toggle('on')"></button></div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-section-title">Raspberry Pi</div>
+      <div class="settings-row"><div><div class="settings-row-label">RPi Optimised Mode</div><div class="settings-row-desc">Reduce effects for lower-power devices</div></div><button class="toggle" onclick="this.classList.toggle('on');showNotif('🍓','RPi Mode','Raspberry Pi optimisation toggled')"></button></div>
+      <div class="settings-row"><div><div class="settings-row-label">Touch Mode</div><div class="settings-row-desc">Larger touch targets for touchscreens</div></div><button class="toggle" onclick="this.classList.toggle('on')"></button></div>
+    </div>
+  `,
+  about: `
+    <div class="settings-section">
+      <div style="text-align:center;padding:20px 0">
+        <div style="font-family:'Syne',sans-serif;font-size:36px;font-weight:800;background:linear-gradient(135deg,#6c8bff,#a78bfa,#34d399);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">NovOS</div>
+        <div style="font-size:13px;color:var(--text3);margin-top:6px;font-family:'DM Mono',monospace">Version 1.0.0 · Web Edition</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:4px">HTML5 · CSS3 · JavaScript · Claude AI</div>
+      </div>
+      <div class="settings-row"><div class="settings-row-label">Platform</div><div style="color:var(--text3);font-size:13px">Web Browser + Raspberry Pi</div></div>
+      <div class="settings-row"><div class="settings-row-label">AI Engine</div><div style="color:var(--accent3);font-size:13px">Claude (Anthropic)</div></div>
+      <div class="settings-row"><div class="settings-row-label">Kernel</div><div style="color:var(--text3);font-size:13px">NovKernel HTML/JS v1.0</div></div>
+      <div class="settings-row"><div class="settings-row-label">RPi Compatible</div><div style="color:var(--accent3);font-size:13px">✓ Yes — open in Chromium</div></div>
+      <div style="text-align:center;margin-top:16px;font-size:12px;color:var(--text3)">Built as a next-gen OS concept demo 🚀</div>
+    </div>
+  `
+};
+
+function loadSettingsTab(tab) {
+  const main = document.getElementById('settings-main');
+  if (main) main.innerHTML = settingsTabs[tab] || '';
+}
+
+function setAccent(color, el) {
+  document.documentElement.style.setProperty('--accent', color);
+  document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));
+  el.classList.add('active');
+  showNotif('🎨','Appearance',`Accent color updated!`);
+}
+
+// ===== CONTEXT MENU =====
+document.getElementById('desktop').addEventListener('contextmenu', e => {
+  e.preventDefault();
+  const ctx = document.getElementById('context-menu');
+  ctx.style.display = 'block'; ctx.style.left = e.clientX+'px'; ctx.style.top = Math.min(e.clientY, window.innerHeight-200)+'px';
+});
+document.addEventListener('click', closeCtx);
+function closeCtx() { document.getElementById('context-menu').style.display = 'none'; }
+document.addEventListener('click', e => { if (!e.target.closest('#start-menu') && !e.target.closest('#start-btn')) closeStart(); });
+
+// ===== ISLAND CYCLE =====
+const islandMessages = ['✨ Nova AI ready', '🌐 Spatial Workspace', '🎯 Focus Mode available', '🔒 NovOS Secure', '🍓 RPi Compatible'];
+let islandIdx = 0;
+setInterval(() => { if (!novaOpen) { updateIsland(islandMessages[islandIdx % islandMessages.length]); islandIdx++; } }, 8000);
+
+// ===== RPI TIP =====
+setTimeout(() => showNotif('🍓', 'RPi Tip', 'Open novos.html in Chromium on Raspberry Pi for a native OS feel!'), 6000);
+
+// ================================================================
+// BROWSER APP
+// ================================================================
+const EMBEDDABLE = [
+  { name:'Wikipedia', url:'https://en.m.wikipedia.org/wiki/Main_Page', icon:'📖' },
+  { name:'OpenStreetMap', url:'https://www.openstreetmap.org/export/embed.html?bbox=-0.2,51.4,0.1,51.6&layer=mapnik', icon:'🗺️' },
+  { name:'YouTube', url:'https://www.youtube.com/embed/dQw4w9WgXcQ', icon:'▶️' },
+  { name:'Archive.org', url:'https://archive.org', icon:'🏛️' },
+  { name:'NovOS Help', url:'about:blank', icon:'❓' },
+];
+const BLOCKED_HINT = ['google.com','facebook.com','twitter.com','instagram.com','reddit.com','amazon.com','github.com','youtube.com/watch'];
+
+function openBrowser() {
+  const bmarks = EMBEDDABLE.map(b=>`<div class="bmark" onclick="browserNav('${b.url}','${b.name}')">${b.icon} ${b.name}</div>`).join('');
+  const content = `
+    <div class="browser-bar">
+      <button class="browser-nav" onclick="browserBack()">◀</button>
+      <button class="browser-nav" onclick="browserForward()">▶</button>
+      <button class="browser-nav" onclick="browserRefresh()">↻</button>
+      <input class="browser-url" id="browser-url-input" value="https://" onkeydown="if(event.key==='Enter')browserGo()">
+      <button class="browser-go" onclick="browserGo()">Go</button>
+    </div>
+    <div class="browser-bookmarks">${bmarks}</div>
+    <div id="browser-content" style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+      <div class="browser-blocked">
+        <div class="big-icon">🌍</div>
+        <h3>NovOS Browser</h3>
+        <p>Enter a URL above or pick a bookmark. Most sites block embedding — use bookmarks for guaranteed working sites, or click "Open in New Tab" for anything else.</p>
+      </div>
+    </div>
+  `;
+  createWindow('browser','Browser','🌍',760,520,content,80,40);
+}
+
+let browserHistory=[], browserHistIdx=-1;
+
+function browserGo() {
+  let url = document.getElementById('browser-url-input')?.value.trim();
+  if (!url) return;
+  if (!url.startsWith('http')) url = 'https://' + url;
+  browserNav(url, url);
+}
+
+function browserNav(url, label) {
+  const inp = document.getElementById('browser-url-input');
+  if (inp) inp.value = url;
+  browserHistory = browserHistory.slice(0, browserHistIdx+1);
+  browserHistory.push(url); browserHistIdx++;
+
+  const isBlocked = BLOCKED_HINT.some(h => url.includes(h));
+  const cont = document.getElementById('browser-content');
+  if (!cont) return;
+
+  if (isBlocked || url === 'about:blank') {
+    cont.innerHTML = `
+      <div class="browser-blocked">
+        <div class="big-icon">🚫</div>
+        <h3>Site blocks embedding</h3>
+        <p><strong>${label || url}</strong> prevents websites from embedding it inside other pages — this is a security feature used by most major sites like Google, GitHub, and Reddit.</p>
+        <button class="browser-open-btn" onclick="window.open('${url}','_blank')">Open in New Tab ↗</button>
+      </div>`;
+    return;
+  }
+
+  cont.innerHTML = `<iframe class="browser-frame" src="${url}" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" onload="this.style.opacity=1" style="opacity:0;transition:opacity 0.3s;flex:1;border:none;"></iframe>`;
+  // fallback blocked detector
+  const iframe = cont.querySelector('iframe');
+  if (iframe) {
+    iframe.onerror = () => {
+      cont.innerHTML = `<div class="browser-blocked"><div class="big-icon">⚠️</div><h3>Could not load</h3><p>${url}</p><button class="browser-open-btn" onclick="window.open('${url}','_blank')">Open in New Tab ↗</button></div>`;
+    };
+    setTimeout(() => {
+      try { if (!iframe.contentDocument) throw new Error(); } catch(e) {
+        cont.innerHTML = `<div class="browser-blocked"><div class="big-icon">🔒</div><h3>Blocked by site</h3><p><strong>${url}</strong> refused to load here. Click below to open it properly.</p><button class="browser-open-btn" onclick="window.open('${url}','_blank')">Open in New Tab ↗</button></div>`;
+      }
+    }, 2500);
+  }
+  updateIsland(`🌍 ${label||url}`);
+}
+
+function browserBack() { if (browserHistIdx > 0) { browserHistIdx--; browserNav(browserHistory[browserHistIdx], browserHistory[browserHistIdx]); } }
+function browserForward() { if (browserHistIdx < browserHistory.length-1) { browserHistIdx++; browserNav(browserHistory[browserHistIdx], browserHistory[browserHistIdx]); } }
+function browserRefresh() { if (browserHistory[browserHistIdx]) browserNav(browserHistory[browserHistIdx], browserHistory[browserHistIdx]); }
+
+// ================================================================
+// CALCULATOR APP
+// ================================================================
+let calcVal = '0', calcExpr = '', calcNewNum = true;
+
+function openCalc() {
+  const btns = [
+    ['fn','AC','calcClear'],['fn','±','calcSign'],['fn','%','calcPct'],['op','÷','calcOp("/")'],
+    ['num','7','calcNum("7")'],['num','8','calcNum("8")'],['num','9','calcNum("9")'],['op','×','calcOp("*")'],
+    ['num','4','calcNum("4")'],['num','5','calcNum("5")'],['num','6','calcNum("6")'],['op','−','calcOp("-")'],
+    ['num','1','calcNum("1")'],['num','2','calcNum("2")'],['num','3','calcNum("3")'],['op','+','calcOp("+")'],
+    ['num wide','0','calcNum("0")'],['num','.','calcDot'],['eq','=','calcEquals'],
+  ];
+  const grid = btns.map(([cls,label,fn])=>`<button class="calc-btn ${cls}" onclick="${fn}">${label}</button>`).join('');
+  const content = `
+    <div class="calc-body">
+      <div class="calc-display">
+        <div class="calc-expr" id="calc-expr"></div>
+        <div class="calc-val" id="calc-val">0</div>
+      </div>
+      <div class="calc-grid">${grid}</div>
+    </div>`;
+  createWindow('calc','Calculator','🔢',280,400,content,300,100);
+}
+
+let calcPrevVal = null, calcPrevOp = null;
+function calcNum(n) {
+  if (calcNewNum) { calcVal = n; calcNewNum = false; } else { calcVal = calcVal === '0' ? n : calcVal + n; }
+  updCalc();
+}
+function calcOp(op) {
+  calcPrevVal = parseFloat(calcVal); calcPrevOp = op;
+  calcExpr = calcVal + ' ' + {'+':'+','-':'−','*':'×','/':'÷'}[op];
+  calcNewNum = true; updCalc();
+}
+function calcEquals() {
+  if (calcPrevOp === null) return;
+  const a = calcPrevVal, b = parseFloat(calcVal);
+  const ops = {'+':a+b,'-':a-b,'*':a*b,'/':b!==0?a/b:'Error'};
+  calcExpr = calcExpr + ' ' + calcVal + ' =';
+  calcVal = String(ops[calcPrevOp] ?? 'Error');
+  calcPrevOp = null; calcPrevVal = null; calcNewNum = true; updCalc();
+}
+function calcClear() { calcVal='0'; calcExpr=''; calcPrevOp=null; calcPrevVal=null; calcNewNum=true; updCalc(); }
+function calcSign() { calcVal = String(-parseFloat(calcVal)); updCalc(); }
+function calcPct() { calcVal = String(parseFloat(calcVal)/100); updCalc(); }
+function calcDot() { if (!calcVal.includes('.')) { calcVal += '.'; calcNewNum = false; } updCalc(); }
+function updCalc() {
+  const v = document.getElementById('calc-val'); if (v) v.textContent = calcVal.length > 12 ? parseFloat(calcVal).toExponential(4) : calcVal;
+  const e = document.getElementById('calc-expr'); if (e) e.textContent = calcExpr;
+}
+
+// ================================================================
+// PAINT APP
+// ================================================================
+let paintCtx, paintDrawing = false, paintColor = '#6c8bff', paintSize = 6, paintTool = 'brush', paintLastX, paintLastY;
+const paintColors = ['#6c8bff','#a78bfa','#34d399','#f472b6','#fbbf24','#f87171','#ffffff','#000000','#64748b','#0ea5e9','#84cc16','#fb923c'];
+
+function openPaint() {
+  const swatches = paintColors.map(c=>`<div class="paint-swatch${c===paintColor?' active':''}" style="background:${c}" onclick="setPaintColor('${c}',this)"></div>`).join('');
+  const content = `
+    <div class="paint-toolbar">
+      <button class="paint-tool-btn active" id="ptool-brush" onclick="setPaintTool('brush',this)">🖌 Brush</button>
+      <button class="paint-tool-btn" id="ptool-eraser" onclick="setPaintTool('eraser',this)">🧹 Eraser</button>
+      <button class="paint-tool-btn" id="ptool-line" onclick="setPaintTool('line',this)">📏 Line</button>
+      <button class="paint-tool-btn" id="ptool-rect" onclick="setPaintTool('rect',this)">⬜ Rect</button>
+      <div class="paint-size"><span>Size:</span><input type="range" min="1" max="40" value="6" oninput="paintSize=+this.value" style="width:70px"></div>
+      <div class="paint-colors">${swatches}</div>
+      <button class="paint-tool-btn" onclick="clearPaint()">🗑 Clear</button>
+      <button class="paint-tool-btn" onclick="savePaint()">💾 Save</button>
+    </div>
+    <div class="paint-canvas-wrap">
+      <canvas id="paint-canvas" width="640" height="380"
+        onmousedown="paintStart(event)" onmousemove="paintMove(event)" onmouseup="paintEnd()" onmouseleave="paintEnd()"></canvas>
+    </div>`;
+  createWindow('paint','Paint','🎨',680,480,content,60,50);
+  setTimeout(initPaint, 80);
+}
+
+function initPaint() {
+  const c = document.getElementById('paint-canvas'); if (!c) return;
+  paintCtx = c.getContext('2d');
+  paintCtx.fillStyle = '#12141f'; paintCtx.fillRect(0,0,c.width,c.height);
+  paintCtx.lineCap = 'round'; paintCtx.lineJoin = 'round';
+}
+function getPaintPos(e) {
+  const c = document.getElementById('paint-canvas'); const r = c.getBoundingClientRect();
+  return [(e.clientX-r.left)*(c.width/r.width), (e.clientY-r.top)*(c.height/r.height)];
+}
+let paintSnapshot;
+function paintStart(e) {
+  paintDrawing = true; [paintLastX,paintLastY] = getPaintPos(e);
+  if (paintTool==='line'||paintTool==='rect') paintSnapshot = paintCtx.getImageData(0,0,640,380);
+  paintCtx.beginPath(); paintCtx.moveTo(paintLastX,paintLastY);
+}
+function paintMove(e) {
+  if (!paintDrawing || !paintCtx) return;
+  const [x,y] = getPaintPos(e);
+  if (paintTool==='brush'||paintTool==='eraser') {
+    paintCtx.globalCompositeOperation = paintTool==='eraser'?'destination-out':'source-over';
+    paintCtx.strokeStyle = paintColor; paintCtx.lineWidth = paintSize;
+    paintCtx.lineTo(x,y); paintCtx.stroke(); paintCtx.beginPath(); paintCtx.moveTo(x,y);
+  } else if (paintTool==='line') {
+    paintCtx.putImageData(paintSnapshot,0,0);
+    paintCtx.globalCompositeOperation='source-over'; paintCtx.strokeStyle=paintColor; paintCtx.lineWidth=paintSize;
+    paintCtx.beginPath(); paintCtx.moveTo(paintLastX,paintLastY); paintCtx.lineTo(x,y); paintCtx.stroke();
+  } else if (paintTool==='rect') {
+    paintCtx.putImageData(paintSnapshot,0,0);
+    paintCtx.globalCompositeOperation='source-over'; paintCtx.strokeStyle=paintColor; paintCtx.lineWidth=paintSize;
+    paintCtx.strokeRect(paintLastX,paintLastY,x-paintLastX,y-paintLastY);
+  }
+}
+function paintEnd() { paintDrawing=false; if(paintCtx){paintCtx.beginPath();} }
+function setPaintColor(c,el) { paintColor=c; document.querySelectorAll('.paint-swatch').forEach(s=>s.classList.remove('active')); el.classList.add('active'); }
+function setPaintTool(t,el) { paintTool=t; document.querySelectorAll('.paint-tool-btn').forEach(b=>b.classList.remove('active')); el.classList.add('active'); }
+function clearPaint() { if(paintCtx){paintCtx.fillStyle='#12141f';paintCtx.fillRect(0,0,640,380);} }
+function savePaint() {
+  const c=document.getElementById('paint-canvas'); if(!c) return;
+  const a=document.createElement('a'); a.download='novos-paint.png'; a.href=c.toDataURL(); a.click();
+  showNotif('🎨','Paint','Image saved to downloads!');
+}
+
+// ================================================================
+// CHESS APP
+// ================================================================
+const CHESS_PIECES = {
+  wK:'♔',wQ:'♕',wR:'♖',wB:'♗',wN:'♘',wP:'♙',
+  bK:'♚',bQ:'♛',bR:'♜',bB:'♝',bN:'♞',bP:'♟'
+};
+let chessBoard, chessTurn, chessSelected, chessValidMoves, chessStatus;
+
+function openChess() {
+  const content = `
+    <div class="chess-wrap">
+      <div class="chess-status" id="chess-status">White's turn ♔</div>
+      <div class="chess-board" id="chess-board"></div>
+      <div class="chess-controls">
+        <button class="sp-btn" onclick="initChessBoard()">New Game</button>
+        <button class="sp-btn" onclick="chessFlip()">Flip Board</button>
+      </div>
+    </div>`;
+  createWindow('chess','Chess','♟️',460,500,content,200,40);
+  setTimeout(initChessBoard,60);
+}
+
+function initChessBoard() {
+  chessTurn='w'; chessSelected=null; chessValidMoves=[];
+  chessBoard=[
+    ['bR','bN','bB','bQ','bK','bB','bN','bR'],
+    ['bP','bP','bP','bP','bP','bP','bP','bP'],
+    [null,null,null,null,null,null,null,null],
+    [null,null,null,null,null,null,null,null],
+    [null,null,null,null,null,null,null,null],
+    [null,null,null,null,null,null,null,null],
+    ['wP','wP','wP','wP','wP','wP','wP','wP'],
+    ['wR','wN','wB','wQ','wK','wB','wN','wR'],
+  ];
+  renderChess();
+}
+
+function renderChess() {
+  const board = document.getElementById('chess-board'); if (!board) return;
+  board.innerHTML='';
+  for (let r=0;r<8;r++) for (let c=0;c<8;c++) {
+    const cell=document.createElement('div');
+    const isLight=(r+c)%2===0;
+    cell.className='chess-cell '+(isLight?'light':'dark');
+    const piece=chessBoard[r][c];
+    if(piece) cell.textContent=CHESS_PIECES[piece]||'';
+    if(chessSelected&&chessSelected[0]===r&&chessSelected[1]===c) cell.classList.add('selected');
+    if(chessValidMoves.some(([mr,mc])=>mr===r&&mc===c)) cell.classList.add('valid-move');
+    cell.onclick=()=>chessClick(r,c);
+    board.appendChild(cell);
+  }
+  const st=document.getElementById('chess-status'); if(st) st.textContent=chessTurn==='w'?'White\'s turn ♔':'Black\'s turn ♚';
+}
+
+function chessClick(r,c) {
+  const piece=chessBoard[r][c];
+  if(chessValidMoves.some(([mr,mc])=>mr===r&&mc===c)) {
+    chessBoard[r][c]=chessBoard[chessSelected[0]][chessSelected[1]];
+    chessBoard[chessSelected[0]][chessSelected[1]]=null;
+    // pawn promotion
+    if(chessBoard[r][c]==='wP'&&r===0) chessBoard[r][c]='wQ';
+    if(chessBoard[r][c]==='bP'&&r===7) chessBoard[r][c]='bQ';
+    chessTurn=chessTurn==='w'?'b':'w'; chessSelected=null; chessValidMoves=[];
+    renderChess();
+    if(chessTurn==='b') setTimeout(chessAIMove,400);
+    return;
+  }
+  if(piece&&piece[0]===chessTurn) { chessSelected=[r,c]; chessValidMoves=getChessMoves(r,c); }
+  else { chessSelected=null; chessValidMoves=[]; }
+  renderChess();
+}
+
+function getChessMoves(r,c) {
+  const piece=chessBoard[r][c]; if(!piece) return [];
+  const color=piece[0], type=piece[1], moves=[];
+  const add=(nr,nc)=>{ if(nr>=0&&nr<8&&nc>=0&&nc<8){ const t=chessBoard[nr][nc]; if(!t||t[0]!==color) moves.push([nr,nc]); return !t; } return false; };
+  if(type==='P'){
+    const dir=color==='w'?-1:1, start=color==='w'?6:1;
+    if(!chessBoard[r+dir]?.[c]){add(r+dir,c); if(r===start&&!chessBoard[r+2*dir]?.[c])add(r+2*dir,c);}
+    [[r+dir,c-1],[r+dir,c+1]].forEach(([nr,nc])=>{if(chessBoard[nr]?.[nc]&&chessBoard[nr][nc][0]!==color)moves.push([nr,nc]);});
+  } else if(type==='N'){[[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]].forEach(([dr,dc])=>add(r+dr,c+dc));}
+  else if(type==='K'){[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]].forEach(([dr,dc])=>add(r+dr,c+dc));}
+  else {
+    const dirs={R:[[0,1],[0,-1],[1,0],[-1,0]],B:[[1,1],[1,-1],[-1,1],[-1,-1]],Q:[[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]]}[type]||[];
+    dirs.forEach(([dr,dc])=>{let nr=r+dr,nc=c+dc; while(add(nr,nc)&&chessBoard[nr][nc]===null){nr+=dr;nc+=dc;}});
+  }
+  return moves;
+}
+
+function chessAIMove() {
+  // Simple AI: find all black pieces and pick a random legal move
+  let allMoves=[];
+  for(let r=0;r<8;r++) for(let c=0;c<8;c++) if(chessBoard[r][c]&&chessBoard[r][c][0]==='b'){
+    const ms=getChessMoves(r,c); ms.forEach(m=>allMoves.push({from:[r,c],to:m}));
+  }
+  // Prefer captures
+  const captures=allMoves.filter(m=>chessBoard[m.to[0]][m.to[1]]);
+  const pick=captures.length?(captures[Math.floor(Math.random()*captures.length)]):(allMoves[Math.floor(Math.random()*allMoves.length)]);
+  if(!pick) return;
+  chessBoard[pick.to[0]][pick.to[1]]=chessBoard[pick.from[0]][pick.from[1]];
+  chessBoard[pick.from[0]][pick.from[1]]=null;
+  chessTurn='w'; renderChess();
+}
+
+function chessFlip() { chessBoard=chessBoard.slice().reverse().map(r=>r.slice().reverse()); renderChess(); }
+
+// ================================================================
+// CALENDAR APP
+// ================================================================
+let calYear=new Date().getFullYear(), calMonth=new Date().getMonth();
+const calEvents={
+  [new Date().toDateString()]:[{color:'#6c8bff',text:'Today — Demo Day!'}],
+  [new Date(Date.now()+86400000).toDateString()]:[{color:'#34d399',text:'School presentation'}],
+  [new Date(Date.now()+3*86400000).toDateString()]:[{color:'#f472b6',text:'Project deadline'}],
+};
+
+function openCalendar() {
+  const content=`<div class="cal-body" id="cal-body"></div>`;
+  createWindow('calendar','Calendar','📅',400,480,content,250,60);
+  setTimeout(renderCalendar,50);
+}
+
+function renderCalendar() {
+  const body=document.getElementById('cal-body'); if(!body) return;
+  const today=new Date(); const first=new Date(calYear,calMonth,1); const days=new Date(calYear,calMonth+1,0).getDate();
+  const months=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const dayNames=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  let html=`
+    <div class="cal-header">
+      <button class="cal-nav" onclick="calPrev()">‹</button>
+      <div class="cal-month">${months[calMonth]} ${calYear}</div>
+      <button class="cal-nav" onclick="calNext()">›</button>
+    </div>
+    <div class="cal-grid">
+      ${dayNames.map(d=>`<div class="cal-day-name">${d}</div>`).join('')}`;
+  // empty cells before month start
+  for(let i=0;i<first.getDay();i++) html+=`<div class="cal-day other-month"></div>`;
+  for(let d=1;d<=days;d++){
+    const date=new Date(calYear,calMonth,d); const isToday=date.toDateString()===today.toDateString();
+    const hasEv=!!calEvents[date.toDateString()];
+    html+=`<div class="cal-day${isToday?' today':''}${hasEv?' has-event':''}" onclick="calDayClick(${d})">${d}</div>`;
+  }
+  html+=`</div>`;
+  // events for today
+  const todayEvs=calEvents[today.toDateString()]||[];
+  if(todayEvs.length){
+    html+=`<div class="cal-events"><div class="cal-events-title">Today's Events</div>`;
+    todayEvs.forEach(ev=>{ html+=`<div class="cal-event"><div class="cal-event-dot" style="background:${ev.color}"></div>${ev.text}</div>`; });
+    html+=`</div>`;
+  }
+  body.innerHTML=html;
+}
+
+function calPrev(){ calMonth--; if(calMonth<0){calMonth=11;calYear--;} renderCalendar(); }
+function calNext(){ calMonth++; if(calMonth>11){calMonth=0;calYear++;} renderCalendar(); }
+function calDayClick(d){
+  const date=new Date(calYear,calMonth,d); const evs=calEvents[date.toDateString()]||[];
+  if(evs.length) showNotif('📅','Calendar',evs.map(e=>e.text).join(', '));
+  else showNotif('📅','Calendar',`No events on ${date.toLocaleDateString()}`);
+}
+
+// ================================================================
+// CODE EDITOR APP
+// ================================================================
+const codeExamples={
+  javascript:`// Welcome to NovOS Code Editor!
+function greet(name) {
+  return \`Hello, \${name}! Welcome to NovOS.\`;
+}
+
+const result = greet('World');
+console.log(result);
+
+// Try some maths
+const nums = [1, 2, 3, 4, 5];
+const sum = nums.reduce((a, b) => a + b, 0);
+console.log('Sum:', sum);`,
+  html:`<!DOCTYPE html>
+<html>
+<head>
+  <title>My NovOS Page</title>
+</head>
+<body style="background:#111;color:#f0f0ff;font-family:sans-serif;padding:2rem">
+  <h1>Hello from NovOS! 🚀</h1>
+  <p>This is a live HTML preview.</p>
+  <button onclick="alert('NovOS!')">Click me</button>
+</body>
+</html>`,
+  python:`# Python (display only - no runtime)
+def fibonacci(n):
+    a, b = 0, 1
+    for _ in range(n):
+        print(a, end=' ')
+        a, b = b, a + b
+
+fibonacci(10)
+print()
+print("NovOS Code Editor")`
+};
+
+let codeLang='javascript';
+
+function openCode(){
+  const content=`
+    <div class="code-toolbar">
+      <select class="code-lang" id="code-lang" onchange="switchCodeLang(this.value)">
+        <option value="javascript">JavaScript</option>
+        <option value="html">HTML</option>
+        <option value="python">Python</option>
+      </select>
+      <button class="code-run-btn" onclick="runCode()">▶ Run</button>
+      <button class="paint-tool-btn" onclick="clearCodeOutput()">Clear Output</button>
+      <span style="margin-left:auto;font-size:11px;color:var(--text3);font-family:'DM Mono',monospace">JS runs live · HTML previews · Python displays</span>
+    </div>
+    <div class="code-body">
+      <div class="code-gutter" id="code-gutter">1</div>
+      <textarea class="code-editor" id="code-editor" spellcheck="false" oninput="updateGutter()" onkeydown="codeKey(event)">${codeExamples.javascript}</textarea>
+    </div>
+    <div class="code-output" id="code-output"><span style="color:var(--text3)">// Output will appear here — click ▶ Run</span></div>`;
+  createWindow('code','Code Editor','💻',640,460,content,100,50);
+  setTimeout(updateGutter,60);
+}
+
+function updateGutter(){
+  const ed=document.getElementById('code-editor'); const g=document.getElementById('code-gutter'); if(!ed||!g) return;
+  const lines=ed.value.split('\n').length;
+  g.innerHTML=Array.from({length:lines},(_,i)=>i+1).join('<br>');
+}
+
+function switchCodeLang(lang){
+  codeLang=lang;
+  const ed=document.getElementById('code-editor'); if(ed) ed.value=codeExamples[lang]||'';
+  updateGutter(); clearCodeOutput();
+}
+
+function codeKey(e){
+  if(e.key==='Tab'){e.preventDefault(); const ta=e.target; const s=ta.selectionStart; ta.value=ta.value.slice(0,s)+'  '+ta.value.slice(ta.selectionEnd); ta.selectionStart=ta.selectionEnd=s+2; updateGutter();}
+}
+
+function runCode(){
+  const code=document.getElementById('code-editor')?.value; if(!code) return;
+  const out=document.getElementById('code-output'); if(!out) return;
+  out.innerHTML='';
+  if(codeLang==='javascript'){
+    const logs=[]; const origLog=console.log;
+    console.log=(...args)=>{ logs.push(args.map(a=>typeof a==='object'?JSON.stringify(a,null,2):String(a)).join(' ')); };
+    try{ eval(code); console.log=origLog; out.innerHTML=logs.map(l=>`<div>${escHtml(l)}</div>`).join('')||'<span style="color:var(--text3)">// No output</span>'; }
+    catch(e){ console.log=origLog; out.innerHTML=`<div class="err">Error: ${escHtml(e.message)}</div>`; }
+  } else if(codeLang==='html'){
+    const win2=window.open('','_blank','width=600,height=400');
+    if(win2){ win2.document.write(code); win2.document.close(); out.innerHTML='<div style="color:var(--accent3)">✓ HTML opened in new window</div>'; }
+    else out.innerHTML='<div class="err">Popup blocked — allow popups to preview HTML</div>';
+  } else {
+    out.innerHTML='<div style="color:var(--yellow)">⚠ Python runtime not available in browser. Code displayed only.<br>Run with: python3 your_file.py</div>';
+  }
+  updateIsland('💻 Code executed');
+}
+
+function clearCodeOutput(){ const o=document.getElementById('code-output'); if(o) o.innerHTML='<span style="color:var(--text3)">// Output cleared</span>'; }
+function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+</script>
+</body>
+</html>
